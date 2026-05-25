@@ -1,81 +1,1315 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>M3U Checker & Converter</title>
-    <style>
-        body { font-family: monospace; background: #0f172a; color: #f8fafc; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; background: #1e293b; padding: 20px; border-radius: 10px; }
-        input, select, button { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; border: none; }
-        button { background: #22c55e; color: white; font-weight: bold; cursor: pointer; }
-        button:hover { background: #16a34a; }
-        .result { background: #0f172a; padding: 10px; border-radius: 5px; margin-top: 10px; }
-        pre { white-space: pre-wrap; word-wrap: break-word; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ IPTV Ultimate Tool v9</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0f1a;
+  --bg2: #111827;
+  --bg3: #1e2d40;
+  --border: #1e3a5f;
+  --accent: #3b82f6;
+  --accent2: #06b6d4;
+  --green: #10b981;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+  --purple: #8b5cf6;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --card: #131c2e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.05) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.05) 0%, transparent 50%);
+}
+
+/* ── HEADER ── */
+.header {
+  background: linear-gradient(135deg, #0b1929 0%, #0f2035 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+.header-logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+.header-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+
+/* ── LAYOUT ── */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 24px;
+}
+
+/* ── TABS ── */
+.tab-nav {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  background: var(--bg2);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+.tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.tab-btn:hover:not(.active) {
+  background: var(--bg3);
+  color: var(--text);
+}
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ── CARD ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── MODE SELECTOR ── */
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 0;
+}
+.mode-card {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.mode-card:hover { border-color: var(--accent); background: rgba(59,130,246,0.05); }
+.mode-card.active { border-color: var(--accent); background: rgba(59,130,246,0.1); }
+.mode-card input { display: none; }
+.mode-icon { font-size: 22px; margin-bottom: 6px; }
+.mode-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.mode-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── FORM ── */
+.form-group {
+  margin-bottom: 14px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+input[type=text],
+input[type=password],
+input[type=url],
+select {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 9px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus {
+  border-color: var(--accent);
+}
+
+/* ── CHECKBOXES ── */
+.check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.check-label:hover { border-color: var(--accent); }
+.check-label input { display: none; }
+.check-label.checked { background: rgba(59,130,246,0.1); border-color: var(--accent); color: var(--accent); }
+.check-label.xxx.checked { background: rgba(239,68,68,0.1); border-color: var(--red); color: var(--red); }
+
+/* ── RESOLVE MODE ── */
+.resolve-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.resolve-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.resolve-opt:hover { border-color: var(--accent); }
+.resolve-opt.active { border-color: var(--accent); background: rgba(59,130,246,0.07); }
+.resolve-opt input { margin-top: 2px; accent-color: var(--accent); }
+.resolve-opt-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.resolve-opt-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 22px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #2563eb);
+  color: #fff;
+  width: 100%;
+  justify-content: center;
+  font-size: 14px;
+}
+.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-success {
+  background: linear-gradient(135deg, var(--green), #059669);
+  color: #fff;
+}
+.btn-danger { background: var(--red); color: #fff; }
+
+/* ── PROGRESS ── */
+.progress-wrap {
+  margin: 12px 0;
+}
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.progress-bar {
+  height: 6px;
+  background: var(--bg3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+}
+.status-line {
+  font-size: 12px;
+  color: var(--accent2);
+  min-height: 20px;
+  margin-top: 6px;
+}
+
+/* ── LOG / OUTPUT ── */
+.log-container {
+  background: #080d17;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.8;
+  max-height: 420px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-container::-webkit-scrollbar { width: 4px; }
+.log-container::-webkit-scrollbar-track { background: transparent; }
+.log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── RESULT TABS ── */
+.result-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 0;
+  margin-top: 16px;
+}
+.result-tab-btn {
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px 6px 0 0;
+  background: var(--bg2);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  border-bottom: none;
+  transition: all 0.2s;
+}
+.result-tab-btn.active { background: var(--card); color: var(--text); border-color: var(--border); }
+.result-pane { display: none; }
+.result-pane.active { display: block; }
+
+/* ── TABLE ── */
+.ch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ch-table th {
+  background: var(--bg2);
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+}
+.ch-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(30,58,95,0.3);
+  vertical-align: middle;
+}
+.ch-table tr:hover td { background: rgba(59,130,246,0.04); }
+.alive-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.alive-yes { background: rgba(16,185,129,0.15); color: var(--green); }
+.alive-no  { background: rgba(239,68,68,0.15);  color: var(--red); }
+.cat-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* ── SCORE BOX ── */
+.score-box {
+  text-align: center;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+  margin-bottom: 16px;
+}
+.score-num {
+  font-family: 'Syne', sans-serif;
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+}
+.score-label { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.score-verdict { font-size: 16px; font-weight: 700; margin-top: 8px; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.stat-cat { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-nums { font-size: 13px; font-weight: 600; margin-top: 4px; }
+.stat-rate { font-size: 11px; color: var(--muted); }
+
+/* ── DOWNLOAD BOX ── */
+.download-box {
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.3);
+  border-radius: 10px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.download-info { font-size: 13px; }
+.download-info strong { color: var(--green); display: block; margin-bottom: 4px; font-size: 14px; }
+.download-info span { color: var(--muted); font-size: 12px; }
+
+/* ── ALERT ── */
+.alert {
+  padding: 10px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.alert-info { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); color: var(--accent2); }
+.alert-warn { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.2); color: var(--yellow); }
+.alert-xxx  { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: var(--red); }
+
+/* ── SCAN SETTINGS ── */
+.scan-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── HIDDEN ── */
+.hidden { display: none !important; }
+
+/* ── SCROLLABLE TABLE WRAP ── */
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 380px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+@media(max-width:700px){
+  .mode-grid { grid-template-columns: 1fr; }
+  .form-row { grid-template-columns: 1fr; }
+  .scan-row { grid-template-columns: 1fr; }
+  .download-box { flex-direction: column; }
+  .header-sub { display: none; }
+}
+</style>
 </head>
 <body>
-<div class="container">
-    <h1>🎬 M3U Checker & Converter</h1>
-    <p>Test M3U URL atau Convert Stalker portal ke M3U</p>
 
-    <h3>🔍 Test M3U URL</h3>
-    <input type="text" id="m3uUrl" placeholder="https://example.com/playlist.m3u">
-    <button onclick="testM3U()">Test & Cek Channel Aktif</button>
-
-    <h3>🔄 Convert Stalker Portal ke M3U</h3>
-    <input type="text" id="portalUrl" placeholder="http://portal.com:8080/">
-    <input type="text" id="macAddr" placeholder="00:1A:79:XX:XX:XX">
-    <button onclick="convertStalker()">Convert ke M3U</button>
-
-    <div id="result" class="result" style="display:none;">
-        <h3>📊 Hasil:</h3>
-        <pre id="output"></pre>
-    </div>
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="header-logo">⚡ IPTV Ultimate Tool</div>
+  </div>
+  <span class="badge">v9</span>
+  <div class="header-sub">Scanner + Converter → M3U · Vercel Serverless</div>
 </div>
 
+<div class="container">
+
+  <!-- MAIN TABS -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('scanner')">🔍 Scanner</button>
+    <button class="tab-btn" onclick="switchTab('converter')">💾 Convert → M3U</button>
+  </div>
+
+  <!-- ══════════════════════════════ SCANNER ══════════════════════════════ -->
+  <div id="tab-scanner" class="tab-pane active">
+
+    <!-- Mode -->
+    <div class="card">
+      <div class="card-title">🔌 Mode Koneksi</div>
+      <div class="mode-grid">
+        <label class="mode-card active" id="mc-xtream" onclick="setMode('Xtream')">
+          <input type="radio" name="sc_mode" value="Xtream" checked>
+          <div class="mode-icon">🎯</div>
+          <div class="mode-name">Xtream Codes</div>
+          <div class="mode-desc">Server + User + Pass</div>
+        </label>
+        <label class="mode-card" id="mc-mac" onclick="setMode('MAC')">
+          <input type="radio" name="sc_mode" value="MAC">
+          <div class="mode-icon">📡</div>
+          <div class="mode-name">MAC Portal</div>
+          <div class="mode-desc">Stalker/Ministra</div>
+        </label>
+        <label class="mode-card" id="mc-raw" onclick="setMode('Raw')">
+          <input type="radio" name="sc_mode" value="Raw">
+          <div class="mode-icon">📋</div>
+          <div class="mode-name">Raw M3U/M3U8</div>
+          <div class="mode-desc">URL file playlist</div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Credentials -->
+    <div class="card" id="cred-xtream">
+      <div class="card-title">🔐 Xtream Credentials</div>
+      <div class="form-group">
+        <label>Server URL</label>
+        <input type="text" id="sc_server" placeholder="http://domain:port">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="sc_user" placeholder="username">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="sc_pass" placeholder="password">
+        </div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="cred-mac">
+      <div class="card-title">📡 MAC Portal</div>
+      <div class="form-group">
+        <label>Portal URL</label>
+        <input type="text" id="sc_portal" placeholder="http://domain:port/c/">
+      </div>
+      <div class="form-group">
+        <label>MAC Address</label>
+        <input type="text" id="sc_mac" placeholder="00:1A:79:XX:XX:XX">
+      </div>
+    </div>
+
+    <div class="card hidden" id="cred-raw">
+      <div class="card-title">📋 M3U / M3U8 URL</div>
+      <div class="form-group">
+        <label>URL Playlist</label>
+        <input type="url" id="sc_rawurl" placeholder="http://domain/playlist.m3u">
+      </div>
+      <div class="alert alert-info">⚡ URL diparse server-side — tidak ada CORS issue</div>
+    </div>
+
+    <!-- Scan Settings -->
+    <div class="card">
+      <div class="card-title">⚙️ Pengaturan Scan</div>
+      <div class="scan-row">
+        <div class="form-group">
+          <label>Mode Scan</label>
+          <select id="sc_scanmode" onchange="toggleSampleSize()">
+            <option value="sample">Sample — cepat</option>
+            <option value="full">FULL — semua channel</option>
+          </select>
+        </div>
+        <div class="form-group" id="sc_sample_wrap">
+          <label>Sample per kategori</label>
+          <select id="sc_sample">
+            <option value="5">5 channel</option>
+            <option value="10" selected>10 channel</option>
+            <option value="15">15 channel</option>
+            <option value="20">20 channel</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Paralel check (server)</label>
+          <select id="sc_workers">
+            <option value="5">5 workers</option>
+            <option value="10" selected>10 workers</option>
+            <option value="15">15 workers</option>
+            <option value="20">20 workers</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Run Scan -->
+    <button class="btn btn-primary" id="btn-scan" onclick="runScan()">
+      🚀 Jalankan Scan
+    </button>
+
+    <!-- Progress -->
+    <div id="scan-progress" class="hidden" style="margin-top:14px;">
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span>Progress</span>
+          <span id="scan-pct">0%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="scan-fill" style="width:0%"></div></div>
+      </div>
+      <div class="status-line" id="scan-status">Memulai...</div>
+    </div>
+
+    <!-- Results -->
+    <div id="scan-results" class="hidden" style="margin-top:16px;">
+      <div class="result-tabs">
+        <button class="result-tab-btn active" onclick="switchResultTab('summary')">📊 Summary</button>
+        <button class="result-tab-btn" onclick="switchResultTab('channels')">📋 Semua Channel</button>
+        <button class="result-tab-btn" onclick="switchResultTab('xxx')" id="rt-xxx">🔞 XXX/Adult</button>
+      </div>
+      <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:16px;background:var(--card);">
+
+        <!-- Summary -->
+        <div id="rp-summary" class="result-pane active">
+          <div class="score-box" id="score-box"></div>
+          <div class="stat-grid" id="stat-grid"></div>
+        </div>
+
+        <!-- Channels -->
+        <div id="rp-channels" class="result-pane">
+          <div class="table-wrap" id="ch-table-wrap"></div>
+        </div>
+
+        <!-- XXX -->
+        <div id="rp-xxx" class="result-pane">
+          <div class="table-wrap" id="xxx-table-wrap"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /tab-scanner -->
+
+
+  <!-- ══════════════════════════════ CONVERTER ══════════════════════════════ -->
+  <div id="tab-converter" class="tab-pane">
+
+    <!-- Mode -->
+    <div class="card">
+      <div class="card-title">🔌 Mode Koneksi</div>
+      <div class="mode-grid" style="grid-template-columns:1fr 1fr;">
+        <label class="mode-card active" id="cv-xtream" onclick="setCvMode('Xtream')">
+          <input type="radio" name="cv_mode" value="Xtream" checked>
+          <div class="mode-icon">🎯</div>
+          <div class="mode-name">Xtream Codes</div>
+          <div class="mode-desc">Server + User + Pass</div>
+        </label>
+        <label class="mode-card" id="cv-mac" onclick="setCvMode('MAC')">
+          <input type="radio" name="cv_mode" value="MAC">
+          <div class="mode-icon">📡</div>
+          <div class="mode-name">MAC Portal</div>
+          <div class="mode-desc">Stalker/Ministra</div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Xtream Creds -->
+    <div class="card" id="cv-cred-xtream">
+      <div class="card-title">🔐 Xtream Credentials</div>
+      <div class="form-group">
+        <label>Server URL</label>
+        <input type="text" id="cv_server" placeholder="http://domain:port">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="cv_user" placeholder="username">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="cv_pass" placeholder="password">
+        </div>
+      </div>
+    </div>
+
+    <!-- MAC Creds -->
+    <div class="card hidden" id="cv-cred-mac">
+      <div class="card-title">📡 MAC Portal</div>
+      <div class="form-group">
+        <label>Portal URL</label>
+        <input type="text" id="cv_portal" placeholder="http://domain:port/c/">
+      </div>
+      <div class="form-group">
+        <label>MAC Address</label>
+        <input type="text" id="cv_mac" placeholder="00:1A:79:XX:XX:XX">
+      </div>
+
+      <!-- Resolve mode hanya di MAC -->
+      <div class="card-title" style="margin-top:16px;">🔗 Mode Resolve URL</div>
+      <div class="resolve-opts" id="resolve-opts">
+        <label class="resolve-opt" onclick="setResolve('cmd')">
+          <input type="radio" name="cv_resolve" value="cmd" checked>
+          <div>
+            <div class="resolve-opt-title">⚡ CMD Langsung (Rekomendasi)</div>
+            <div class="resolve-opt-desc">Ekstrak URL dari field cmd — cepat, cocok untuk 10.000+ channel</div>
+          </div>
+        </label>
+        <label class="resolve-opt" onclick="setResolve('resolve')">
+          <input type="radio" name="cv_resolve" value="resolve">
+          <div>
+            <div class="resolve-opt-title">🎯 Resolve URL (Akurat)</div>
+            <div class="resolve-opt-desc">Request create_link ke server — akurat tapi lambat, lebih aman dari IP block</div>
+          </div>
+        </label>
+        <label class="resolve-opt" onclick="setResolve('raw')">
+          <input type="radio" name="cv_resolve" value="raw">
+          <div>
+            <div class="resolve-opt-title">📝 URL Mentah</div>
+            <div class="resolve-opt-desc">Simpan cmd as-is tanpa modifikasi — paling cepat</div>
+          </div>
+        </label>
+      </div>
+      <div class="alert alert-info" style="margin-top:12px;">
+        ✅ <strong>Anti-Block:</strong> Semua request ke portal diproses server Vercel — IP browser tidak terekspos ke server IPTV, mengurangi risiko pemblokiran.
+      </div>
+    </div>
+
+    <!-- Content Types -->
+    <div class="card">
+      <div class="card-title">📦 Jenis Konten</div>
+      <div class="check-grid">
+        <label class="check-label checked" id="chk-live" onclick="toggleChk(this,'live')">
+          <input type="checkbox" id="cv_live" checked> 📺 Live TV
+        </label>
+        <label class="check-label" id="chk-vod" onclick="toggleChk(this,'vod')">
+          <input type="checkbox" id="cv_vod"> 🎬 VOD (Film)
+        </label>
+        <label class="check-label xxx" id="chk-xxx" onclick="toggleChk(this,'xxx')">
+          <input type="checkbox" id="cv_xxx"> 🔞 XXX/Adult
+        </label>
+      </div>
+      <div class="alert alert-xxx" style="margin-top:10px;">
+        ⚠️ XXX/Adult dideteksi otomatis. Centang untuk disertakan dalam playlist.
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="card">
+      <div class="card-title">⚙️ Opsi Output</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Format Stream</label>
+          <select id="cv_fmt">
+            <option value="ts">.ts (default)</option>
+            <option value="m3u8">.m3u8 (HLS)</option>
+            <option value="mp4">.mp4</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nama File Output</label>
+          <input type="text" id="cv_fname" value="playlist.m3u">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>EPG URL (opsional)</label>
+        <input type="text" id="cv_epg" placeholder="http://epg.domain.com/epg.xml">
+      </div>
+    </div>
+
+    <!-- Convert Button -->
+    <button class="btn btn-primary" id="btn-convert" onclick="runConvert()">
+      🎬 Convert → M3U
+    </button>
+
+    <!-- Progress -->
+    <div id="cv-progress" class="hidden" style="margin-top:14px;">
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span>Progress</span>
+          <span id="cv-pct">0%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="cv-fill" style="width:0%"></div></div>
+      </div>
+      <div class="status-line" id="cv-status">Memulai...</div>
+    </div>
+
+    <!-- Converter Log -->
+    <div id="cv-log-wrap" class="hidden" style="margin-top:16px;">
+      <div class="card-title" style="margin-bottom:8px;">📜 Log</div>
+      <div class="log-container" id="cv-log"></div>
+    </div>
+
+    <!-- Download -->
+    <div id="cv-download" class="hidden" style="margin-top:16px;">
+      <div class="download-box">
+        <div class="download-info">
+          <strong>✅ File M3U berhasil dibuat!</strong>
+          <span id="cv-dl-info"></span>
+        </div>
+        <button class="btn btn-success" id="cv-dl-btn">⬇️ Download M3U</button>
+      </div>
+    </div>
+
+  </div><!-- /tab-converter -->
+
+</div><!-- /container -->
+
 <script>
-async function testM3U() {
-    const url = document.getElementById('m3uUrl').value;
-    if (!url) { alert('Masukkan URL M3U'); return; }
-    showResult('🔍 Memproses...');
-    try {
-        const resp = await fetch('/api/validate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ m3u: url, timeout: 5, workers: 10 })
-        });
-        const data = await resp.json();
-        showResult(JSON.stringify(data, null, 2));
-    } catch(e) { showResult('Error: ' + e.message); }
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
+let currentMode = 'Xtream';
+let currentCvMode = 'Xtream';
+let scanResults = [];
+let modeResolve = 'cmd';
+const API_BASE = '/api';
+
+// ══════════════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ══════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
 }
 
-async function convertStalker() {
-    const portal = document.getElementById('portalUrl').value;
-    const mac = document.getElementById('macAddr').value;
-    if (!portal || !mac) { alert('Isi portal dan MAC'); return; }
-    showResult('🔄 Converting...');
-    try {
-        const resp = await fetch('/api/convert', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ portal: portal, mac: mac, types: ['live'] })
-        });
-        const blob = await resp.blob();
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'playlist.m3u';
-        link.click();
-        showResult('✅ Download playlist.m3u dimulai!');
-    } catch(e) { showResult('Error: ' + e.message); }
+function switchResultTab(name) {
+  document.querySelectorAll('.result-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.result-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('rp-' + name).classList.add('active');
+  event.target.classList.add('active');
 }
 
-function showResult(msg) {
-    const div = document.getElementById('result');
-    const pre = document.getElementById('output');
-    pre.textContent = msg;
-    div.style.display = 'block';
+// ══════════════════════════════════════════════════════════════
+// MODE SWITCHERS
+// ══════════════════════════════════════════════════════════════
+function setMode(m) {
+  currentMode = m;
+  ['Xtream','MAC','Raw'].forEach(x => {
+    document.getElementById('mc-' + x.toLowerCase()).classList.remove('active');
+  });
+  document.getElementById('mc-' + m.toLowerCase()).classList.add('active');
+  document.getElementById('cred-xtream').classList.toggle('hidden', m !== 'Xtream');
+  document.getElementById('cred-mac').classList.toggle('hidden', m !== 'MAC');
+  document.getElementById('cred-raw').classList.toggle('hidden', m !== 'Raw');
 }
+
+function setCvMode(m) {
+  currentCvMode = m;
+  ['Xtream','MAC'].forEach(x => {
+    document.getElementById('cv-' + x.toLowerCase()).classList.remove('active');
+  });
+  document.getElementById('cv-' + m.toLowerCase()).classList.add('active');
+  document.getElementById('cv-cred-xtream').classList.toggle('hidden', m !== 'Xtream');
+  document.getElementById('cv-cred-mac').classList.toggle('hidden', m !== 'MAC');
+}
+
+function setResolve(v) {
+  modeResolve = v;
+  document.querySelectorAll('.resolve-opt').forEach(o => {
+    const inp = o.querySelector('input');
+    o.classList.toggle('active', inp.value === v);
+  });
+}
+
+function toggleChk(el, id) {
+  const inp = document.getElementById('cv_' + id);
+  inp.checked = !inp.checked;
+  el.classList.toggle('checked', inp.checked);
+}
+
+function toggleSampleSize() {
+  const full = document.getElementById('sc_scanmode').value === 'full';
+  document.getElementById('sc_sample_wrap').classList.toggle('hidden', full);
+}
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+function setProgress(fillId, pctId, pct) {
+  document.getElementById(fillId).style.width = pct + '%';
+  document.getElementById(pctId).textContent = pct + '%';
+}
+
+function setStatus(id, msg) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = msg;
+}
+
+async function apiPost(endpoint, body) {
+  const resp = await fetch(API_BASE + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return resp.json();
+}
+
+const XXX_KEYWORDS = [
+  'xxx','adult','porn','sex','erotic','18+','xvideos','xnxx',
+  'brazzers','playboy','penthouse','nude','naked','milf','anal',
+  'hardcore','hentai','redtube','pornhub','granny','mature',
+  'fetish','bdsm','shemale','cam4','chaturbate',
+];
+function isXxx(name, group) {
+  const c = ((name||'') + ' ' + (group||'')).toLowerCase();
+  return XXX_KEYWORDS.some(k => c.includes(k));
+}
+
+const CATEGORIES = {
+  HBO:   ['hbo'],
+  TNT:   ['tnt'],
+  SPORT: ['sport','bein','espn','mola','liga','premier'],
+  MOVIE: ['movie','cinema','film','paramount'],
+  KIDS:  ['kids','cartoon','disney','nick','toon'],
+  NEWS:  ['news','cnn','bbc','fox'],
+  PPV:   ['ppv','event','ufc','wwe','boxing','fight'],
+};
+const CAT_COLORS = {
+  HBO:'#7c3aed',TNT:'#1d4ed8',SPORT:'#047857',MOVIE:'#b45309',
+  KIDS:'#db2777',NEWS:'#0369a1',PPV:'#dc2626',OTHER:'#6b7280',XXX:'#be185d'
+};
+const WEIGHTS = {SPORT:1.4,PPV:1.4,HBO:1.25,TNT:1.2,MOVIE:1.1,KIDS:0.8,NEWS:0.7};
+
+function detectCat(name, group) {
+  if (isXxx(name, group)) return 'XXX';
+  const n = (name||'').toLowerCase();
+  for (const [cat, keys] of Object.entries(CATEGORIES)) {
+    if (keys.some(k => n.includes(k))) return cat;
+  }
+  return 'OTHER';
+}
+
+function parseM3U(content) {
+  const lines = content.split('\n');
+  const channels = [];
+  let meta = {};
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith('#EXTINF')) {
+      meta = { name: 'Unknown', group: 'OTHER' };
+      const tvg = line.match(/tvg-name="([^"]*)"/);
+      if (tvg) meta.name = tvg[1];
+      const grp = line.match(/group-title="([^"]*)"/);
+      if (grp) meta.group = grp[1];
+      if (meta.name === 'Unknown') {
+        const parts = line.split(',');
+        if (parts.length > 1) meta.name = parts[parts.length-1].trim();
+      }
+    } else if (line.startsWith('http://') || line.startsWith('https://') || line.startsWith('rtmp')) {
+      channels.push({ name: meta.name||'Unknown', group: meta.group||'OTHER', url: line });
+      meta = {};
+    }
+  }
+  return channels;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SCAN
+// ══════════════════════════════════════════════════════════════
+async function runScan() {
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = true;
+  document.getElementById('scan-progress').classList.remove('hidden');
+  document.getElementById('scan-results').classList.add('hidden');
+  setProgress('scan-fill','scan-pct',0);
+  setStatus('scan-status','🔄 Menghubungi server...');
+
+  try {
+    let channels = [];
+    const mode = currentMode;
+
+    if (mode === 'Xtream') {
+      const server = document.getElementById('sc_server').value.trim().replace(/\/$/,'');
+      const user   = document.getElementById('sc_user').value.trim();
+      const pass   = document.getElementById('sc_pass').value.trim();
+      if (!server || !user || !pass) { alert('Server, user, dan password wajib diisi.'); btn.disabled=false; return; }
+
+      setStatus('scan-status','📡 Mengambil daftar channel Xtream...');
+      setProgress('scan-fill','scan-pct',10);
+      const data = await apiPost('/proxy', { action:'xtream_live', server, user, passwd:pass });
+      if (!data.ok) throw new Error(data.error);
+      channels = data.channels.map(ch => ({ ...ch, url: `${server}/live/${user}/${pass}/${ch.stream_id}.ts` }));
+      setProgress('scan-fill','scan-pct',30);
+
+    } else if (mode === 'MAC') {
+      const portal = document.getElementById('sc_portal').value.trim();
+      const mac    = document.getElementById('sc_mac').value.trim().toUpperCase();
+      if (!portal || !mac) { alert('Portal dan MAC wajib diisi.'); btn.disabled=false; return; }
+
+      setStatus('scan-status','🤝 Handshake ke portal...');
+      const hs = await apiPost('/proxy', { action:'handshake', portal, mac });
+      if (!hs.ok) throw new Error(hs.error);
+      setProgress('scan-fill','scan-pct',15);
+
+      setStatus('scan-status','📡 Mengambil channel...');
+      const chData = await apiPost('/proxy', { action:'get_channels', portal, mac, token:hs.token });
+      if (!chData.ok) throw new Error(chData.error);
+      channels = chData.channels.map(ch => ({
+        name: ch.name,
+        group: ch.genre_name || ch.category_name || 'MAC TV',
+        cmd: ch.cmd,
+        url: extractCmdUrl(ch.cmd || ''),
+      }));
+      setProgress('scan-fill','scan-pct',30);
+
+    } else { // Raw
+      const rawUrl = document.getElementById('sc_rawurl').value.trim();
+      if (!rawUrl) { alert('M3U URL wajib diisi.'); btn.disabled=false; return; }
+
+      setStatus('scan-status','⬇️ Mengunduh M3U...');
+      const mdata = await apiPost('/proxy', { action:'fetch_m3u', url:rawUrl });
+      if (!mdata.ok) throw new Error(mdata.error);
+      channels = parseM3U(mdata.content);
+      setProgress('scan-fill','scan-pct',30);
+    }
+
+    // Categorize
+    const catGroups = {};
+    for (const ch of channels) {
+      const cat = detectCat(ch.name, ch.group);
+      if (!catGroups[cat]) catGroups[cat] = [];
+      catGroups[cat].push(ch);
+    }
+
+    // Sample
+    const isFull = document.getElementById('sc_scanmode').value === 'full';
+    const sampleN = parseInt(document.getElementById('sc_sample').value);
+    const toCheck = [];
+    const catStats = {};
+
+    for (const [cat, items] of Object.entries(catGroups)) {
+      catStats[cat] = { total: items.length, samples: 0, alive: 0 };
+      const subset = isFull ? items : items.slice(0, sampleN);
+      catStats[cat].samples = subset.length;
+      for (const ch of subset) toCheck.push({ ...ch, cat });
+    }
+
+    setStatus('scan-status',`🔍 Mengecek ${toCheck.length} stream via server...`);
+    setProgress('scan-fill','scan-pct',40);
+
+    // Batch scan via server
+    const workers = parseInt(document.getElementById('sc_workers').value);
+    const urls = toCheck.map(ch => ch.url).filter(u => u && u.includes('://'));
+    const batchSize = 50;
+    const allResults = {};
+
+    for (let i = 0; i < urls.length; i += batchSize) {
+      const batch = urls.slice(i, i + batchSize);
+      const resp = await fetch(API_BASE + '/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: batch, workers, timeout: 8 }),
+      });
+      const r = await resp.json();
+      if (r.ok) Object.assign(allResults, r.results);
+      const pct = 40 + Math.round(((i + batch.length) / Math.max(urls.length,1)) * 55);
+      setProgress('scan-fill','scan-pct', Math.min(pct,94));
+      setStatus('scan-status',`✅ Dicek: ${Math.min(i+batchSize,urls.length)}/${urls.length}...`);
+    }
+
+    // Build channel log
+    scanResults = [];
+    for (const ch of toCheck) {
+      const r = allResults[ch.url] || { alive: false, reason: 'No URL' };
+      catStats[ch.cat].alive += r.alive ? 1 : 0;
+      scanResults.push({
+        name: ch.name,
+        cat: ch.cat,
+        status: r.alive ? '✅ ALIVE' : '❌ DEAD',
+        url: ch.url || '',
+        group: ch.group,
+      });
+    }
+
+    setProgress('scan-fill','scan-pct',100);
+    setStatus('scan-status','✅ Scan selesai!');
+
+    renderResults(catStats, scanResults);
+    document.getElementById('scan-results').classList.remove('hidden');
+
+  } catch (e) {
+    setStatus('scan-status', '❌ Error: ' + e.message);
+    alert('Error: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+function extractCmdUrl(cmd) {
+  if (!cmd) return '';
+  const parts = cmd.split(' ').reverse();
+  for (const p of parts) {
+    if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('rtmp')) return p;
+  }
+  return cmd.startsWith('http') ? cmd : '';
+}
+
+// ── RENDER RESULTS ──────────────────────────────────────────
+function renderResults(catStats, log) {
+  // Score
+  let wSum = 0, wTotal = 0;
+  for (const [cat, d] of Object.entries(catStats)) {
+    if (cat === 'OTHER' || cat === 'XXX' || d.samples === 0) continue;
+    const rate = d.alive / d.samples * 100;
+    const w = WEIGHTS[cat] || 1;
+    wSum += rate * w;
+    wTotal += w;
+  }
+  const score = wTotal > 0 ? Math.round(wSum / wTotal) : 0;
+  const verdict = score >= 82 ? '🏆 EXCELLENT PROVIDER'
+                : score >= 68 ? '👍 GOOD PROVIDER'
+                : score >= 50 ? '⚠️ AVERAGE'
+                : '❌ BELOW AVERAGE';
+  const scoreColor = score >= 82 ? '#10b981' : score >= 68 ? '#3b82f6' : score >= 50 ? '#f59e0b' : '#ef4444';
+
+  document.getElementById('score-box').innerHTML = `
+    <div class="score-num" style="color:${scoreColor}">${score}</div>
+    <div class="score-label">Global Score / 100</div>
+    <div class="score-verdict" style="color:${scoreColor}">${verdict}</div>
+  `;
+
+  // Stats
+  const sg = document.getElementById('stat-grid');
+  sg.innerHTML = '';
+  for (const [cat, d] of Object.entries(catStats)) {
+    if (d.total === 0) continue;
+    const rate = d.samples > 0 ? Math.round(d.alive / d.samples * 100) : 0;
+    const col = CAT_COLORS[cat] || '#6b7280';
+    sg.innerHTML += `
+      <div class="stat-card">
+        <div class="stat-cat" style="color:${col}">${cat}</div>
+        <div class="stat-nums">${d.alive}/${d.samples} alive</div>
+        <div class="stat-rate">${rate}% · total: ${d.total}</div>
+      </div>`;
+  }
+
+  // Channel table
+  const wrap = document.getElementById('ch-table-wrap');
+  wrap.innerHTML = buildTable(log, false);
+
+  // XXX table
+  const xxxLog = log.filter(r => r.cat === 'XXX');
+  const xxxWrap = document.getElementById('xxx-table-wrap');
+  const rt = document.getElementById('rt-xxx');
+  if (xxxLog.length > 0) {
+    xxxWrap.innerHTML = buildTable(xxxLog, true);
+    rt.textContent = `🔞 XXX/Adult (${xxxLog.length})`;
+  } else {
+    xxxWrap.innerHTML = '<div style="padding:20px;color:var(--green);font-size:13px;">✅ Tidak ada channel XXX/Adult terdeteksi.</div>';
+  }
+}
+
+function buildTable(rows, xxxOnly) {
+  const sorted = [...rows].sort((a,b) => {
+    if (a.status === b.status) return a.name.localeCompare(b.name);
+    return a.status === '✅ ALIVE' ? -1 : 1;
+  });
+  let trs = '';
+  sorted.forEach((r, i) => {
+    const col = CAT_COLORS[r.cat] || '#6b7280';
+    const alive = r.status === '✅ ALIVE';
+    trs += `<tr>
+      <td style="color:var(--muted);font-size:11px;">${i+1}</td>
+      <td>${r.name}</td>
+      <td><span class="cat-badge" style="background:${col}">${r.cat}</span></td>
+      <td><span class="alive-badge ${alive?'alive-yes':'alive-no'}">${r.status}</span></td>
+    </tr>`;
+  });
+  const aliveN = rows.filter(r => r.status === '✅ ALIVE').length;
+  return `
+    <div style="padding:10px 14px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);display:flex;gap:16px;">
+      <span>Total: <b style="color:var(--text)">${rows.length}</b></span>
+      <span>✅ <b style="color:var(--green)">${aliveN}</b></span>
+      <span>❌ <b style="color:var(--red)">${rows.length-aliveN}</b></span>
+    </div>
+    <table class="ch-table">
+      <thead><tr>
+        <th>No</th><th>Channel</th><th>Kategori</th><th>Status</th>
+      </tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// CONVERTER
+// ══════════════════════════════════════════════════════════════
+function cvLog(msg) {
+  const el = document.getElementById('cv-log');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+async function runConvert() {
+  const btn = document.getElementById('btn-convert');
+  btn.disabled = true;
+  document.getElementById('cv-progress').classList.remove('hidden');
+  document.getElementById('cv-log-wrap').classList.remove('hidden');
+  document.getElementById('cv-download').classList.add('hidden');
+  document.getElementById('cv-log').textContent = '';
+  setProgress('cv-fill','cv-pct',0);
+  setStatus('cv-status','🔄 Memulai...');
+
+  const live  = document.getElementById('cv_live').checked;
+  const vod   = document.getElementById('cv_vod').checked;
+  const xxx   = document.getElementById('cv_xxx').checked;
+  const fmt   = document.getElementById('cv_fmt').value;
+  const epg   = document.getElementById('cv_epg').value.trim();
+  const fname = (document.getElementById('cv_fname').value.trim() || 'playlist') + (document.getElementById('cv_fname').value.includes('.m3u') ? '' : '.m3u');
+
+  if (!live && !vod && !xxx) {
+    alert('Pilih minimal satu jenis konten.');
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    let bodyPayload;
+
+    if (currentCvMode === 'Xtream') {
+      const server = document.getElementById('cv_server').value.trim().replace(/\/$/,'');
+      const user   = document.getElementById('cv_user').value.trim();
+      const pass   = document.getElementById('cv_pass').value.trim();
+      if (!server||!user||!pass) { alert('Server, user, password wajib diisi.'); btn.disabled=false; return; }
+
+      cvLog('=== XTREAM CONVERT ===');
+      cvLog(`Server: ${server}`);
+      cvLog(`User  : ${user}\n`);
+
+      setStatus('cv-status','📡 Mengambil info akun...');
+      const info = await apiPost('/proxy', { action:'xtream_info', server, user, passwd:pass });
+      if (!info.ok) throw new Error(info.error);
+      const ui = info.data?.user_info || {};
+      cvLog(`Status  : ${ui.status || '?'}`);
+      cvLog(`Expired : ${ui.exp_date ? new Date(ui.exp_date*1000).toLocaleDateString('id') : 'N/A'}`);
+      cvLog(`Koneksi : ${ui.active_cons||'?'}/${ui.max_connections||'?'}\n`);
+
+      setProgress('cv-fill','cv-pct',15);
+
+      bodyPayload = { mode:'xtream', server, user, passwd:pass, live, vod, xxx, fmt, epg, filename:fname };
+
+    } else { // MAC
+      const portal = document.getElementById('cv_portal').value.trim();
+      const mac    = document.getElementById('cv_mac').value.trim().toUpperCase();
+      if (!portal||!mac) { alert('Portal dan MAC wajib diisi.'); btn.disabled=false; return; }
+
+      cvLog('=== MAC CONVERT ===');
+      cvLog(`Portal : ${portal}`);
+      cvLog(`MAC    : ${mac}\n`);
+
+      setStatus('cv-status','🤝 Handshake ke portal...');
+      const hs = await apiPost('/proxy', { action:'handshake', portal, mac });
+      if (!hs.ok) throw new Error(hs.error);
+      cvLog(`Token    : ${hs.token ? hs.token.substring(0,20)+'...' : 'tidak ada'}`);
+      if (hs.profile?.name) cvLog(`Nama     : ${hs.profile.name}`);
+      if (hs.profile?.expiry) cvLog(`Expired  : ${hs.profile.expiry}\n`);
+
+      setProgress('cv-fill','cv-pct',15);
+
+      bodyPayload = { mode:'mac', portal, mac, resolve_mode:modeResolve, xxx, fmt, epg, filename:fname };
+    }
+
+    cvLog(`Format  : .${fmt}`);
+    cvLog(`XXX     : ${xxx ? '✅ disertakan' : '🚫 dikeluarkan'}\n`);
+    setStatus('cv-status','🔄 Mengonversi ke M3U (proses di server)...');
+    setProgress('cv-fill','cv-pct',30);
+
+    // Animate progress
+    let fakePct = 30;
+    const fakeTimer = setInterval(() => {
+      fakePct = Math.min(fakePct + 2, 88);
+      setProgress('cv-fill','cv-pct', fakePct);
+    }, 800);
+
+    // POST to /api/convert → returns M3U file
+    const resp = await fetch(API_BASE + '/convert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyPayload),
+    });
+
+    clearInterval(fakeTimer);
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(()=>({error:'Unknown error'}));
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const sizekb = Math.round(blob.size / 1024);
+
+    setProgress('cv-fill','cv-pct',100);
+    setStatus('cv-status','✅ Konversi selesai!');
+    cvLog(`\n✅ SELESAI — ${sizekb} KB`);
+
+    // Setup download
+    document.getElementById('cv-dl-info').textContent = `${fname} · ${sizekb} KB · format .${fmt}`;
+    const dlBtn = document.getElementById('cv-dl-btn');
+    dlBtn.onclick = () => {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fname;
+      a.click();
+    };
+    document.getElementById('cv-download').classList.remove('hidden');
+
+  } catch (e) {
+    setStatus('cv-status','❌ Gagal: ' + e.message);
+    cvLog('\n❌ ERROR: ' + e.message);
+    alert('Error: ' + e.message);
+  }
+
+  btn.disabled = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+// Set first resolve option active
+document.querySelectorAll('.resolve-opt')[0].classList.add('active');
 </script>
 </body>
 </html>
