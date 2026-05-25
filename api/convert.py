@@ -1,13 +1,12 @@
 """
-IPTV Proxy — mengatasi CORS dan IP blocking dari browser.
-Semua request ke portal IPTV dilewatkan melalui server ini.
+IPTV Convert API — menghasilkan file M3U dari Xtream atau MAC portal.
 """
 import json
 import re
 import requests
 import urllib3
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import urlparse, quote
+from urllib.parse import quote
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -15,314 +14,319 @@ MAG_UA = (
     "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 "
     "(KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
 )
+XXX_KEYWORDS = [
+    "xxx", "adult", "porn", "sex", "erotic", "18+", "xvideos", "xnxx",
+    "brazzers", "playboy", "penthouse", "nude", "naked", "milf", "anal",
+    "hardcore", "hentai", "redtube", "pornhub", "granny", "mature",
+    "fetish", "bdsm", "shemale", "cam4", "chaturbate",
+]
 
-TIMEOUT = 15
+def is_xxx(name, group=""):
+    combined = (str(name) + " " + str(group)).lower()
+    return any(k in combined for k in XXX_KEYWORDS)
 
-def _cors_headers():
-    return {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Content-Type": "application/json",
-    }
+def extract_cmd_url(cmd):
+    if not cmd:
+        return ""
+    cmd = str(cmd).strip()
+    for part in reversed(cmd.split()):
+        if part.startswith(("http://", "https://", "rtmp://", "rtmpe://")):
+            return part
+    if cmd.startswith(("http://", "https://", "rtmp://")):
+        return cmd
+    return cmd
 
-def _err(handler, code, msg):
-    body = json.dumps({"ok": False, "error": msg}).encode()
-    handler.send_response(code)
-    for k, v in _cors_headers().items():
-        handler.send_header(k, v)
-    handler.send_header("Content-Length", str(len(body)))
-    handler.end_headers()
-    handler.wfile.write(body)
+def mac_session(portal, mac, token=None):
+    s = requests.Session()
+    s.verify = False
+    s.headers.update({
+        "User-Agent": MAG_UA,
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{portal}portal.php",
+    })
+    s.cookies.update({"mac": mac, "stb_lang": "en", "timezone": "Europe/Amsterdam"})
+    if token:
+        s.headers["Authorization"] = f"Bearer {token}"
+    return s
 
-def _ok(handler, data):
-    body = json.dumps(data).encode()
-    handler.send_response(200)
-    for k, v in _cors_headers().items():
-        handler.send_header(k, v)
-    handler.send_header("Content-Length", str(len(body)))
-    handler.end_headers()
-    handler.wfile.write(body)
+def build_m3u(entries, epg_url="", include_xxx=False, fmt="ts"):
+    lines = ["#EXTM3U" + (f' x-tvg-url="{epg_url}"' if epg_url else "")]
+    for e in entries:
+        grp = e.get("group", "")
+        name = e.get("name", "Unknown")
+        if is_xxx(name, grp) and not include_xxx:
+            continue
+        sid = e.get("stream_id")
+        tpl = e.get("url_tpl", "")
+        if sid is not None and tpl:
+            url = tpl.format(sid=sid)
+        else:
+            url = e.get("url", "")
+        if not url:
+            continue
+        ext_line = "#EXTINF:-1"
+        if e.get("epg_id"):
+            ext_line += f' tvg-id="{e["epg_id"]}"'
+        ext_line += f' tvg-name="{name}"'
+        if e.get("logo"):
+            ext_line += f' tvg-logo="{e["logo"]}"'
+        if grp:
+            ext_line += f' group-title="{grp}"'
+        if e.get("num"):
+            ext_line += f' tvg-chno="{e["num"]}"'
+        ext_line += f",{name}"
+        lines.append(ext_line)
+        lines.append(url)
+    return "\n".join(lines)
 
 
 class handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        pass  # silence default logging
+        pass
+
+    def _cors(self):
+        return {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
 
     def do_OPTIONS(self):
         self.send_response(204)
-        for k, v in _cors_headers().items():
+        for k, v in self._cors().items():
             self.send_header(k, v)
         self.end_headers()
 
     def do_GET(self):
-        _err(self, 405, "Use POST")
+        body = json.dumps({"status": "ok", "service": "IPTV Convert API v9"}).encode()
+        self.send_response(200)
+        for k, v in self._cors().items():
+            self.send_header(k, v)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_POST(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length) if length else b"{}")
         except Exception as e:
-            _err(self, 400, f"Bad JSON: {e}")
+            self._err(400, f"Bad JSON: {e}")
             return
 
-        action = body.get("action", "")
-
-        if action == "handshake":
-            self._do_handshake(body)
-        elif action == "get_channels":
-            self._do_get_channels(body)
-        elif action == "create_link":
-            self._do_create_link(body)
-        elif action == "xtream_info":
-            self._do_xtream_info(body)
-        elif action == "xtream_live":
-            self._do_xtream_live(body)
-        elif action == "xtream_vod":
-            self._do_xtream_vod(body)
-        elif action == "check_stream":
-            self._do_check_stream(body)
-        elif action == "fetch_m3u":
-            self._do_fetch_m3u(body)
-        else:
-            _err(self, 400, f"Unknown action: {action}")
-
-    # ─── MAC / Stalker ───────────────────────────────────────────────
-    def _mac_session(self, portal, mac):
-        s = requests.Session()
-        s.verify = False
-        s.headers.update({
-            "User-Agent": MAG_UA,
-            "X-Requested-With": "XMLHttpRequest",
-            "Referer": f"{portal}portal.php",
-        })
-        s.cookies.update({"mac": mac, "stb_lang": "en", "timezone": "Europe/Amsterdam"})
-        return s
-
-    def _do_handshake(self, body):
-        portal = body.get("portal", "").rstrip("/") + "/"
-        mac = body.get("mac", "").strip().upper()
-        if not portal or not mac:
-            _err(self, 400, "portal dan mac wajib diisi")
-            return
+        mode = body.get("mode", "")
         try:
-            s = self._mac_session(portal, mac)
-            r = s.get(
-                f"{portal}portal.php?type=stb&action=handshake&JsHttpRequest=1-xml",
-                timeout=TIMEOUT,
-            )
-            data = r.json()
-            js = data.get("js", {})
-            token = js.get("token") if isinstance(js, dict) else None
-
-            # Get profile
-            profile = {}
-            if token:
-                s.headers["Authorization"] = f"Bearer {token}"
-            try:
-                pr = s.get(
-                    f"{portal}portal.php?type=account_info&action=get_main_info&JsHttpRequest=1-xml",
-                    timeout=TIMEOUT,
-                )
-                pjs = pr.json().get("js", {})
-                if isinstance(pjs, dict):
-                    fname = (pjs.get("fname", "") + " " + pjs.get("lname", "")).strip()
-                    profile = {
-                        "name": fname or "Unknown",
-                        "expiry": pjs.get("phone", "") or pjs.get("end_date", "") or "Unlimited",
-                        "mac": mac,
-                    }
-            except Exception:
-                pass
-
-            _ok(self, {"ok": True, "token": token, "profile": profile})
+            if mode == "xtream":
+                self._convert_xtream(body)
+            elif mode == "mac":
+                self._convert_mac(body)
+            else:
+                self._err(400, "mode harus 'xtream' atau 'mac'")
         except Exception as e:
-            _err(self, 502, f"Handshake gagal: {e}")
+            self._err(500, str(e))
 
-    def _do_get_channels(self, body):
-        portal = body.get("portal", "").rstrip("/") + "/"
-        mac = body.get("mac", "").strip().upper()
-        token = body.get("token", "")
-        try:
-            s = self._mac_session(portal, mac)
-            if token:
-                s.headers["Authorization"] = f"Bearer {token}"
+    def _err(self, code, msg):
+        b = json.dumps({"ok": False, "error": msg}).encode()
+        self.send_response(code)
+        for k, v in self._cors().items():
+            self.send_header(k, v)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
 
-            # try get_all_channels first
-            r = s.get(
-                f"{portal}portal.php?type=itv&action=get_all_channels&JsHttpRequest=1-xml",
-                timeout=TIMEOUT,
-            )
-            js = r.json().get("js", {})
-            if isinstance(js, dict) and js.get("data"):
-                _ok(self, {"ok": True, "channels": js["data"], "total": len(js["data"])})
-                return
+    def _send_m3u(self, content, filename="playlist.m3u"):
+        b = content.encode("utf-8")
+        self.send_response(200)
+        for k, v in self._cors().items():
+            self.send_header(k, v)
+        self.send_header("Content-Type", "audio/x-mpegurl")
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
 
-            # fallback: paginate
-            all_ch, page = [], 1
-            while True:
-                r = s.get(
-                    f"{portal}portal.php?type=itv&action=get_ordered_list"
-                    f"&genre=*&p={page}&JsHttpRequest=1-xml",
-                    timeout=TIMEOUT,
-                )
-                js = r.json().get("js", {})
-                if not isinstance(js, dict):
-                    break
-                data = js.get("data", [])
-                total = int(js.get("total_items", 0))
-                if not data:
-                    break
-                all_ch.extend(data)
-                if total and len(all_ch) >= total:
-                    break
-                if len(data) < 14:
-                    break
-                page += 1
-
-            _ok(self, {"ok": True, "channels": all_ch, "total": len(all_ch)})
-        except Exception as e:
-            _err(self, 502, f"Get channels gagal: {e}")
-
-    def _do_create_link(self, body):
-        portal = body.get("portal", "").rstrip("/") + "/"
-        mac = body.get("mac", "").strip().upper()
-        token = body.get("token", "")
-        cmd = body.get("cmd", "")
-        try:
-            s = self._mac_session(portal, mac)
-            if token:
-                s.headers["Authorization"] = f"Bearer {token}"
-            cmd_encoded = quote(str(cmd), safe=":/?&= #")
-            r = s.get(
-                f"{portal}portal.php?type=itv&action=create_link"
-                f"&cmd={cmd_encoded}&JsHttpRequest=1-xml",
-                timeout=10,
-            )
-            js = r.json().get("js", {})
-            if isinstance(js, dict):
-                raw = str(js.get("cmd", "") or js.get("url", "")).strip()
-                for part in reversed(raw.split()):
-                    if "://" in part:
-                        _ok(self, {"ok": True, "url": part})
-                        return
-            _ok(self, {"ok": True, "url": ""})
-        except Exception as e:
-            _err(self, 502, f"Create link gagal: {e}")
-
-    # ─── Xtream ──────────────────────────────────────────────────────
-    def _do_xtream_info(self, body):
+    def _convert_xtream(self, body):
         server = body.get("server", "").rstrip("/")
         user = body.get("user", "")
         passwd = body.get("passwd", "")
-        try:
-            r = requests.get(
-                f"{server}/player_api.php?username={user}&password={passwd}",
-                timeout=TIMEOUT, verify=False,
-                headers={"User-Agent": "VLC/3.0.18"},
-            )
-            _ok(self, {"ok": True, "data": r.json()})
-        except Exception as e:
-            _err(self, 502, f"Xtream info gagal: {e}")
+        include_live = body.get("live", True)
+        include_vod = body.get("vod", False)
+        include_xxx = body.get("xxx", False)
+        epg_url = body.get("epg", "")
+        fmt = body.get("fmt", "ts")
+        filename = body.get("filename", "playlist.m3u")
 
-    def _do_xtream_live(self, body):
-        server = body.get("server", "").rstrip("/")
-        user = body.get("user", "")
-        passwd = body.get("passwd", "")
-        try:
+        h = {"User-Agent": "VLC/3.0.18 LibVLC/3.0.18"}
+        entries = []
+
+        if include_live or include_xxx:
             cats = {}
             try:
                 cr = requests.get(
                     f"{server}/player_api.php?username={user}&password={passwd}&action=get_live_categories",
-                    timeout=TIMEOUT, verify=False, headers={"User-Agent": "VLC/3.0.18"},
+                    timeout=15, verify=False, headers=h,
                 )
                 cats = {str(c["category_id"]): c["category_name"] for c in cr.json()}
             except Exception:
                 pass
-
             r = requests.get(
                 f"{server}/player_api.php?username={user}&password={passwd}&action=get_live_streams",
-                timeout=30, verify=False, headers={"User-Agent": "VLC/3.0.18"},
+                timeout=30, verify=False, headers=h,
             )
-            channels = []
             for ch in r.json():
                 cid = str(ch.get("category_id", ""))
-                channels.append({
+                grp = cats.get(cid) or ch.get("category_name", "Live TV")
+                xxx = is_xxx(ch.get("name", ""), grp)
+                if xxx and not include_xxx:
+                    continue
+                if not xxx and not include_live:
+                    continue
+                entries.append({
                     "name": ch.get("name", "Unknown"),
-                    "group": cats.get(cid) or ch.get("category_name", "Live TV"),
+                    "group": grp,
                     "logo": ch.get("stream_icon", ""),
                     "epg_id": ch.get("epg_channel_id", ""),
-                    "stream_id": ch.get("stream_id"),
                     "num": ch.get("num", ""),
+                    "stream_id": ch.get("stream_id"),
+                    "url_tpl": f"{server}/live/{user}/{passwd}/{{sid}}.{fmt}",
                 })
-            _ok(self, {"ok": True, "channels": channels})
-        except Exception as e:
-            _err(self, 502, f"Xtream live gagal: {e}")
 
-    def _do_xtream_vod(self, body):
-        server = body.get("server", "").rstrip("/")
-        user = body.get("user", "")
-        passwd = body.get("passwd", "")
-        try:
+        if include_vod:
             cats = {}
             try:
                 cr = requests.get(
                     f"{server}/player_api.php?username={user}&password={passwd}&action=get_vod_categories",
-                    timeout=TIMEOUT, verify=False, headers={"User-Agent": "VLC/3.0.18"},
+                    timeout=15, verify=False, headers=h,
                 )
                 cats = {str(c["category_id"]): c["category_name"] for c in cr.json()}
             except Exception:
                 pass
-
             r = requests.get(
                 f"{server}/player_api.php?username={user}&password={passwd}&action=get_vod_streams",
-                timeout=30, verify=False, headers={"User-Agent": "VLC/3.0.18"},
+                timeout=30, verify=False, headers=h,
             )
-            vods = []
             for v in r.json():
                 cid = str(v.get("category_id", ""))
-                vods.append({
+                entries.append({
                     "name": v.get("name", "Unknown"),
                     "group": cats.get(cid, "VOD"),
                     "logo": v.get("stream_icon", ""),
+                    "epg_id": "",
+                    "num": "",
                     "stream_id": v.get("stream_id"),
+                    "url_tpl": f"{server}/movie/{user}/{passwd}/{{sid}}.{fmt}",
                 })
-            _ok(self, {"ok": True, "channels": vods})
-        except Exception as e:
-            _err(self, 502, f"Xtream VOD gagal: {e}")
 
-    # ─── Stream check ────────────────────────────────────────────────
-    def _do_check_stream(self, body):
-        url = body.get("url", "")
-        if not url or "://" not in url:
-            _ok(self, {"ok": True, "alive": False, "reason": "No URL"})
-            return
-        try:
-            headers = {"User-Agent": MAG_UA, "Connection": "close", "Accept": "*/*"}
-            with requests.get(url, timeout=10, stream=True, headers=headers, verify=False) as r:
-                if r.status_code not in (200, 206):
-                    _ok(self, {"ok": True, "alive": False, "reason": f"HTTP {r.status_code}"})
-                    return
-                ctype = r.headers.get("Content-Type", "").lower()
-                if any(x in ctype for x in ["text/html", "application/json"]):
-                    _ok(self, {"ok": True, "alive": False, "reason": "HTML response"})
-                    return
-                chunk = r.raw.read(8192)
-                alive = len(chunk) > 512
-                _ok(self, {"ok": True, "alive": alive, "reason": "OK" if alive else "Empty"})
-        except Exception as e:
-            _ok(self, {"ok": True, "alive": False, "reason": str(e)[:80]})
+        m3u = build_m3u(entries, epg_url=epg_url, include_xxx=True, fmt=fmt)
+        self._send_m3u(m3u, filename)
 
-    def _do_fetch_m3u(self, body):
-        url = body.get("url", "")
+    def _convert_mac(self, body):
+        portal = body.get("portal", "").rstrip("/") + "/"
+        mac = body.get("mac", "").strip().upper()
+        resolve_mode = body.get("resolve_mode", "cmd")  # resolve | cmd | raw
+        include_xxx = body.get("xxx", False)
+        epg_url = body.get("epg", "")
+        fmt = body.get("fmt", "ts")
+        filename = body.get("filename", "playlist.m3u")
+
+        # Auth
+        s = mac_session(portal, mac)
+        r = s.get(
+            f"{portal}portal.php?type=stb&action=handshake&JsHttpRequest=1-xml",
+            timeout=15,
+        )
+        js = r.json().get("js", {})
+        token = js.get("token") if isinstance(js, dict) else None
+        if token:
+            s.headers["Authorization"] = f"Bearer {token}"
+
+        # Get channels
+        ch_list = []
         try:
-            r = requests.get(url, timeout=20, verify=False,
-                             headers={"User-Agent": "VLC/3.0.18 LibVLC/3.0.18"})
-            r.raise_for_status()
-            content = r.text
-            if "#EXTM3U" not in content and "extinf" not in content.lower()[:500]:
-                _err(self, 400, "Bukan file M3U/M3U8 yang valid")
-                return
-            _ok(self, {"ok": True, "content": content[:500000]})  # max 500KB
-        except Exception as e:
-            _err(self, 502, f"Fetch M3U gagal: {e}")
+            r = s.get(
+                f"{portal}portal.php?type=itv&action=get_all_channels&JsHttpRequest=1-xml",
+                timeout=15,
+            )
+            js = r.json().get("js", {})
+            if isinstance(js, dict) and js.get("data"):
+                ch_list = js["data"]
+        except Exception:
+            pass
+
+        if not ch_list:
+            page = 1
+            while True:
+                try:
+                    r = s.get(
+                        f"{portal}portal.php?type=itv&action=get_ordered_list"
+                        f"&genre=*&p={page}&JsHttpRequest=1-xml",
+                        timeout=15,
+                    )
+                    js = r.json().get("js", {})
+                    if not isinstance(js, dict):
+                        break
+                    data = js.get("data", [])
+                    total = int(js.get("total_items", 0))
+                    if not data:
+                        break
+                    ch_list.extend(data)
+                    if total and len(ch_list) >= total:
+                        break
+                    if len(data) < 14:
+                        break
+                    page += 1
+                except Exception:
+                    break
+
+        # Build entries
+        entries = []
+        for obj in ch_list:
+            grp = (
+                obj.get("genre_name") or obj.get("category_name") or
+                str(obj.get("tv_genre_id", "")) or "MAC TV"
+            )
+            name = obj.get("name", "Unknown")
+            cmd = obj.get("cmd", "")
+
+            if is_xxx(name, grp) and not include_xxx:
+                continue
+
+            if resolve_mode == "resolve":
+                url = ""
+                try:
+                    cmd_encoded = quote(str(cmd), safe=":/?&= #")
+                    lr = s.get(
+                        f"{portal}portal.php?type=itv&action=create_link"
+                        f"&cmd={cmd_encoded}&JsHttpRequest=1-xml",
+                        timeout=8,
+                    )
+                    ljs = lr.json().get("js", {})
+                    if isinstance(ljs, dict):
+                        raw = str(ljs.get("cmd", "") or ljs.get("url", "")).strip()
+                        for part in reversed(raw.split()):
+                            if "://" in part:
+                                url = part
+                                break
+                except Exception:
+                    pass
+                if not url:
+                    url = extract_cmd_url(cmd)
+            elif resolve_mode == "cmd":
+                url = extract_cmd_url(cmd)
+            else:
+                url = str(cmd).strip() if cmd else ""
+
+            entries.append({
+                "name": name,
+                "group": grp,
+                "logo": obj.get("logo", ""),
+                "epg_id": obj.get("xmltv_id", ""),
+                "num": obj.get("number", ""),
+                "stream_id": None,
+                "url": url,
+            })
+
+        m3u = build_m3u(entries, epg_url=epg_url, include_xxx=True, fmt=fmt)
+        self._send_m3u(m3u, filename)
