@@ -1,1 +1,81 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3U Checker & Converter</title>
+    <style>
+        body { font-family: monospace; background: #0f172a; color: #f8fafc; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #1e293b; padding: 20px; border-radius: 10px; }
+        input, select, button { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; border: none; }
+        button { background: #22c55e; color: white; font-weight: bold; cursor: pointer; }
+        button:hover { background: #16a34a; }
+        .result { background: #0f172a; padding: 10px; border-radius: 5px; margin-top: 10px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🎬 M3U Checker & Converter</h1>
+    <p>Test M3U URL atau Convert Stalker portal ke M3U</p>
 
+    <h3>🔍 Test M3U URL</h3>
+    <input type="text" id="m3uUrl" placeholder="https://example.com/playlist.m3u">
+    <button onclick="testM3U()">Test & Cek Channel Aktif</button>
+
+    <h3>🔄 Convert Stalker Portal ke M3U</h3>
+    <input type="text" id="portalUrl" placeholder="http://portal.com:8080/">
+    <input type="text" id="macAddr" placeholder="00:1A:79:XX:XX:XX">
+    <button onclick="convertStalker()">Convert ke M3U</button>
+
+    <div id="result" class="result" style="display:none;">
+        <h3>📊 Hasil:</h3>
+        <pre id="output"></pre>
+    </div>
+</div>
+
+<script>
+async function testM3U() {
+    const url = document.getElementById('m3uUrl').value;
+    if (!url) { alert('Masukkan URL M3U'); return; }
+    showResult('🔍 Memproses...');
+    try {
+        const resp = await fetch('/api/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ m3u: url, timeout: 5, workers: 10 })
+        });
+        const data = await resp.json();
+        showResult(JSON.stringify(data, null, 2));
+    } catch(e) { showResult('Error: ' + e.message); }
+}
+
+async function convertStalker() {
+    const portal = document.getElementById('portalUrl').value;
+    const mac = document.getElementById('macAddr').value;
+    if (!portal || !mac) { alert('Isi portal dan MAC'); return; }
+    showResult('🔄 Converting...');
+    try {
+        const resp = await fetch('/api/convert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ portal: portal, mac: mac, types: ['live'] })
+        });
+        const blob = await resp.blob();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'playlist.m3u';
+        link.click();
+        showResult('✅ Download playlist.m3u dimulai!');
+    } catch(e) { showResult('Error: ' + e.message); }
+}
+
+function showResult(msg) {
+    const div = document.getElementById('result');
+    const pre = document.getElementById('output');
+    pre.textContent = msg;
+    div.style.display = 'block';
+}
+</script>
+</body>
+</html>
