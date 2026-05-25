@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3U Checker Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .card {
+            background: rgba(30, 41, 59, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+        h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #22c55e, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        label {
+            display: block;
+            color: #cbd5e1;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            margin-top: 16px;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            color: #f1f5f9;
+            font-size: 14px;
+            font-family: monospace;
+            transition: all 0.2s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34,197,94,0.1);
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.1s;
+        }
+        button:hover {
+            transform: scale(0.98);
+            background: linear-gradient(135deg, #16a34a, #15803d);
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        .result {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 20px;
+            border: 1px solid #334155;
+            max-height: 400px;
+            overflow: auto;
+        }
+        .result pre {
+            color: #a5f3fc;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        .badge-live { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e40; }
+        .badge-dead { background: #ef444420; color: #ef4444; border: 1px solid #ef444440; }
+        .channel-item {
+            padding: 8px;
+            border-bottom: 1px solid #334155;
+            font-size: 13px;
+        }
+        .stats {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: #0f172a;
+            padding: 12px 20px;
+            border-radius: 12px;
+            flex: 1;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .loading.show {
+            display: block;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #334155;
+            border-top-color: #22c55e;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            flex: 1;
+            margin-top: 0;
+            background: #1e293b;
+            color: #94a3b8;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+        }
+        .tab-pane {
+            display: none;
+        }
+        .tab-pane.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>🎬 M3U Checker Tool</h1>
+        <div class="subtitle">Cek channel M3U | Deteksi live/dead | Filter XXX</div>
+
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchTab('checker')">🔍 Check M3U URL</button>
+            <button class="tab-btn" onclick="switchTab('text')">📝 Paste M3U Text</button>
+            <button class="tab-btn" onclick="switchTab('stalker')">🔄 Stalker Converter</button>
+        </div>
+
+        <!-- Tab 1: Check M3U URL -->
+        <div id="tab-checker" class="tab-pane active">
+            <label>🔗 URL M3U / M3U8</label>
+            <input type="text" id="m3uUrl" placeholder="https://example.com/playlist.m3u">
+            <button onclick="fetchAndCheckM3U()">🚀 Cek Channel</button>
+        </div>
+
+        <!-- Tab 2: Paste M3U Text -->
+        <div id="tab-text" class="tab-pane">
+            <label>📋 Paste konten M3U di sini</label>
+            <textarea id="m3uText" rows="8" placeholder="#EXTM3U&#10;#EXTINF:-1,Channel 1&#10;http://example.com/stream.ts"></textarea>
+            <button onclick="checkM3UText()">🔍 Parse & Cek</button>
+        </div>
+
+        <!-- Tab 3: Stalker Converter -->
+        <div id="tab-stalker" class="tab-pane">
+            <label>🏢 Portal URL</label>
+            <input type="text" id="portalUrl" placeholder="http://portal-anda.com:8080/c/">
+            <label>🔢 MAC Address</label>
+            <input type="text" id="macAddr" placeholder="00:1A:79:XX:XX:XX">
+            <div style="font-size:12px; color:#64748b; margin-top:5px;">
+                ⚠️ Catatan: Stalker converter perlu backend. Untuk demo, kita akan parse M3U dari URL.
+            </div>
+            <button onclick="demoStalker()">🔄 Demo Parse M3U</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div>Memproses channel...</div>
+        </div>
+
+        <div id="result" class="result" style="display: none;">
+            <div id="statsContainer"></div>
+            <div id="channelsContainer"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(tabName) {
+    // Update buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Update panes
+    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    
+    // Reset result
+    document.getElementById('result').style.display = 'none';
+}
+
+function showLoading(show) {
+    document.getElementById('loading').classList.toggle('show', show);
+}
+
+function showResult(stats, channels) {
+    const statsHtml = `
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" style="color:#22c55e">${stats.live}</div>
+                <div class="stat-label">✅ LIVE</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color:#ef4444">${stats.dead}</div>
+                <div class="stat-label">❌ DEAD</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" style="color:#f59e0b">${stats.xxx}</div>
+                <div class="stat-label">🔞 XXX</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${stats.total}</div>
+                <div class="stat-label">📺 TOTAL</div>
+            </div>
+        </div>
+    `;
+    
+    let channelsHtml = '<div style="margin-top:16px;"><b>📋 Daftar Channel:</b></div>';
+    channels.forEach(ch => {
+        const statusClass = ch.status === 'live' ? 'badge-live' : 'badge-dead';
+        const statusText = ch.status === 'live' ? '✅ LIVE' : '❌ DEAD';
+        channelsHtml += `
+            <div class="channel-item">
+                <span class="badge ${statusClass}">${statusText}</span>
+                <strong>${escapeHtml(ch.name)}</strong>
+                ${ch.xxx ? '<span class="badge" style="background:#be185d20;color:#be185d;">🔞 XXX</span>' : ''}
+                <div style="font-size:11px; color:#64748b; margin-top:4px; word-break:break-all;">${escapeHtml(ch.url)}</div>
+            </div>
+        `;
+    });
+    
+    document.getElementById('statsContainer').innerHTML = statsHtml;
+    document.getElementById('channelsContainer').innerHTML = channelsHtml;
+    document.getElementById('result').style.display = 'block';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function parseM3U(content) {
+    const lines = content.split('\n');
+    const channels = [];
+    let currentChannel = { name: 'Unknown', url: '' };
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        if (line.startsWith('#EXTINF')) {
+            // Extract channel name (after last comma)
+            const commaIndex = line.lastIndexOf(',');
+            if (commaIndex !== -1) {
+                currentChannel.name = line.substring(commaIndex + 1).trim();
+            }
+            // Check for XXX keywords
+            const nameLower = currentChannel.name.toLowerCase();
+            const xxxKeywords = ['xxx', 'adult', 'porn', 'sex', '18+', 'erotic', 'brazzers', 'playboy'];
+            currentChannel.xxx = xxxKeywords.some(k => nameLower.includes(k));
+        } 
+        else if (line.startsWith('http://') || line.startsWith('https://')) {
+            currentChannel.url = line;
+            channels.push({ ...currentChannel });
+            currentChannel = { name: 'Unknown', url: '', xxx: false };
+        }
+    }
+    
+    return channels;
+}
+
+async function checkStream(url) {
+    return new Promise((resolve) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        
+        fetch(url, { 
+            method: 'HEAD',
+            signal: controller.signal,
+            mode: 'no-cors'  // Hindari CORS issues
+        })
+        .then(() => {
+            clearTimeout(timeoutId);
+            resolve('live');
+        })
+        .catch(() => {
+            clearTimeout(timeoutId);
+            // Coba lagi dengan GET (streaming)
+            fetch(url, { method: 'GET', signal: AbortSignal.timeout(5000) })
+                .then(res => resolve(res.ok ? 'live' : 'dead'))
+                .catch(() => resolve('dead'));
+        });
+    });
+}
+
+async function checkChannels(channels) {
+    showLoading(true);
+    
+    const results = [];
+    let live = 0, dead = 0, xxx = 0;
+    
+    for (let i = 0; i < channels.length; i++) {
+        const ch = channels[i];
+        const status = await checkStream(ch.url);
+        
+        if (status === 'live') live++;
+        else dead++;
+        if (ch.xxx) xxx++;
+        
+        results.push({
+            name: ch.name,
+            url: ch.url,
+            status: status,
+            xxx: ch.xxx
+        });
+        
+        // Update progress
+        if (i % 5 === 0) {
+            showLoading(true);
+        }
+    }
+    
+    showLoading(false);
+    
+    showResult({
+        total: channels.length,
+        live: live,
+        dead: dead,
+        xxx: xxx
+    }, results);
+}
+
+async function fetchAndCheckM3U() {
+    const url = document.getElementById('m3uUrl').value;
+    if (!url) {
+        alert('Masukkan URL M3U');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const response = await fetch(url);
+        const content = await response.text();
+        
+        if (!content.includes('#EXTM3U')) {
+            throw new Error('File bukan format M3U yang valid');
+        }
+        
+        const channels = parseM3U(content);
+        await checkChannels(channels);
+    } catch (error) {
+        showLoading(false);
+        alert('Error: ' + error.message);
+    }
+}
+
+async function checkM3UText() {
+    const content = document.getElementById('m3uText').value;
+    if (!content.trim()) {
+        alert('Masukkan konten M3U');
+        return;
+    }
+    
+    const channels = parseM3U(content);
+    await checkChannels(channels);
+}
+
+function demoStalker() {
+    // Demo: Gunakan contoh M3U publik untuk testing
+    const demoM3U = `#EXTM3U
+#EXTINF:-1 tvg-name="CNN International",CNN International
+https://live.cnn.com/cnn/live.m3u8
+#EXTINF:-1 tvg-name="BBC World News",BBC World News
+https://bbcwsen.akamaized.net/hls/live/2006807/bbcwsen/1.m3u8
+#EXTINF:-1 tvg-name="Adult Channel XXX",Adult XXX
+http://example.com/adult.m3u8`;
+    
+    document.getElementById('m3uText').value = demoM3U;
+    switchTab('text');
+    checkM3UText();
+}
+
+// Info tambahan
+console.log('M3U Checker Tool siap digunakan!');
+</script>
+</body>
+</html>
