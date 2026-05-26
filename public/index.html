@@ -884,7 +884,15 @@ async function apiPost(endpoint, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return resp.json();
+  let data;
+  try {
+    data = await resp.json();
+  } catch(e) {
+    const text = await resp.text().catch(()=>'');
+    throw new Error(`Server error (HTTP ${resp.status}): ${text.slice(0,200) || 'Empty response'}`);
+  }
+  if (!resp.ok && data.error) throw new Error(data.error);
+  return data;
 }
 
 const XXX_KEYWORDS = [
@@ -963,15 +971,21 @@ async function runScan() {
     const mode = currentMode;
 
     if (mode === 'Xtream') {
-      const server = document.getElementById('sc_server').value.trim().replace(/\/$/,'');
+      const server = document.getElementById('sc_server').value.trim().replace(/\/+$/,'');
       const user   = document.getElementById('sc_user').value.trim();
       const pass   = document.getElementById('sc_pass').value.trim();
       if (!server || !user || !pass) { alert('Server, user, dan password wajib diisi.'); btn.disabled=false; return; }
+      if (!server.startsWith('http')) { alert('Server URL harus dimulai dengan http:// atau https://'); btn.disabled=false; return; }
 
       setStatus('scan-status','📡 Mengambil daftar channel Xtream...');
       setProgress('scan-fill','scan-pct',10);
-      const data = await apiPost('/proxy', { action:'xtream_live', server, user, passwd:pass });
-      if (!data.ok) throw new Error(data.error);
+      let data;
+      try {
+        data = await apiPost('/proxy', { action:'xtream_live', server, user, passwd:pass });
+      } catch(e) {
+        throw new Error('Xtream gagal: ' + e.message + '\n\nTips: Pastikan URL server benar (contoh: http://domain.com:8080), username dan password valid.');
+      }
+      if (!data.ok) throw new Error('Xtream gagal: ' + (data.error || 'Unknown error'));
       channels = data.channels.map(ch => ({ ...ch, url: `${server}/live/${user}/${pass}/${ch.stream_id}.ts` }));
       setProgress('scan-fill','scan-pct',30);
 
@@ -1190,118 +1204,147 @@ async function runConvert() {
   document.getElementById('cv-download').classList.add('hidden');
   document.getElementById('cv-log').textContent = '';
   setProgress('cv-fill','cv-pct',0);
-  setStatus('cv-status','🔄 Memulai...');
+  setStatus('cv-status','Memulai...');
 
   const live  = document.getElementById('cv_live').checked;
   const vod   = document.getElementById('cv_vod').checked;
   const xxx   = document.getElementById('cv_xxx').checked;
   const fmt   = document.getElementById('cv_fmt').value;
   const epg   = document.getElementById('cv_epg').value.trim();
-  const fname = (document.getElementById('cv_fname').value.trim() || 'playlist') + (document.getElementById('cv_fname').value.includes('.m3u') ? '' : '.m3u');
+  let   fname = document.getElementById('cv_fname').value.trim() || 'playlist';
+  if (!fname.endsWith('.m3u')) fname += '.m3u';
 
   if (!live && !vod && !xxx) {
     alert('Pilih minimal satu jenis konten.');
-    btn.disabled = false;
-    return;
+    btn.disabled = false; return;
   }
 
   try {
     let bodyPayload;
 
     if (currentCvMode === 'Xtream') {
-      const server = document.getElementById('cv_server').value.trim().replace(/\/$/,'');
+      const server = document.getElementById('cv_server').value.trim().replace(/\/+$/,'');
       const user   = document.getElementById('cv_user').value.trim();
       const pass   = document.getElementById('cv_pass').value.trim();
       if (!server||!user||!pass) { alert('Server, user, password wajib diisi.'); btn.disabled=false; return; }
+      if (!server.startsWith('http')) { alert('Server URL harus dimulai http:// atau https://\nContoh: http://domain.com:8080'); btn.disabled=false; return; }
 
       cvLog('=== XTREAM CONVERT ===');
-      cvLog(`Server: ${server}`);
-      cvLog(`User  : ${user}\n`);
+      cvLog('Server: ' + server);
+      cvLog('User  : ' + user + '\n');
 
-      setStatus('cv-status','📡 Mengambil info akun...');
-      const info = await apiPost('/proxy', { action:'xtream_info', server, user, passwd:pass });
-      if (!info.ok) throw new Error(info.error);
-      const ui = info.data?.user_info || {};
-      cvLog(`Status  : ${ui.status || '?'}`);
-      cvLog(`Expired : ${ui.exp_date ? new Date(ui.exp_date*1000).toLocaleDateString('id') : 'N/A'}`);
-      cvLog(`Koneksi : ${ui.active_cons||'?'}/${ui.max_connections||'?'}\n`);
-
+      setStatus('cv-status','Cek akun Xtream...');
+      let info;
+      try {
+        info = await apiPost('/proxy', { action:'xtream_info', server, user, passwd:pass });
+      } catch(fetchErr) {
+        throw new Error('Gagal koneksi ke Xtream: ' + fetchErr.message + '\n\nPastikan server URL benar. Contoh: http://domain.com:8080');
+      }
+      if (!info.ok) throw new Error('Xtream gagal: ' + (info.error||'unknown error'));
+      const ui = (info.data && info.data.user_info) ? info.data.user_info : {};
+      cvLog('Status  : ' + (ui.status || 'unknown'));
+      cvLog('Expired : ' + (ui.exp_date ? new Date(ui.exp_date*1000).toLocaleDateString('id') : 'N/A'));
+      cvLog('Koneksi : ' + (ui.active_cons||'?') + '/' + (ui.max_connections||'?') + '\n');
       setProgress('cv-fill','cv-pct',15);
 
       bodyPayload = { mode:'xtream', server, user, passwd:pass, live, vod, xxx, fmt, epg, filename:fname };
 
-    } else { // MAC
+    } else {
       const portal = document.getElementById('cv_portal').value.trim();
       const mac    = document.getElementById('cv_mac').value.trim().toUpperCase();
       if (!portal||!mac) { alert('Portal dan MAC wajib diisi.'); btn.disabled=false; return; }
 
       cvLog('=== MAC CONVERT ===');
-      cvLog(`Portal : ${portal}`);
-      cvLog(`MAC    : ${mac}\n`);
+      cvLog('Portal : ' + portal);
+      cvLog('MAC    : ' + mac + '\n');
 
-      setStatus('cv-status','🤝 Handshake ke portal...');
+      setStatus('cv-status','Handshake ke portal...');
       const hs = await apiPost('/proxy', { action:'handshake', portal, mac });
-      if (!hs.ok) throw new Error(hs.error);
-      cvLog(`Token    : ${hs.token ? hs.token.substring(0,20)+'...' : 'tidak ada'}`);
-      if (hs.profile?.name) cvLog(`Nama     : ${hs.profile.name}`);
-      if (hs.profile?.expiry) cvLog(`Expired  : ${hs.profile.expiry}\n`);
-
+      if (!hs.ok) throw new Error('Handshake gagal: ' + (hs.error||'unknown'));
+      cvLog('Token    : ' + (hs.token ? hs.token.substring(0,20)+'...' : 'tidak ada'));
+      if (hs.profile && hs.profile.name)   cvLog('Nama     : ' + hs.profile.name);
+      if (hs.profile && hs.profile.expiry) cvLog('Expired  : ' + hs.profile.expiry + '\n');
       setProgress('cv-fill','cv-pct',15);
 
       bodyPayload = { mode:'mac', portal, mac, resolve_mode:modeResolve, xxx, fmt, epg, filename:fname };
     }
 
-    cvLog(`Format  : .${fmt}`);
-    cvLog(`XXX     : ${xxx ? '✅ disertakan' : '🚫 dikeluarkan'}\n`);
-    setStatus('cv-status','🔄 Mengonversi ke M3U (proses di server)...');
+    const kontenList = [];
+    if (live) kontenList.push('Live TV');
+    if (vod)  kontenList.push('VOD');
+    if (xxx)  kontenList.push('XXX');
+    cvLog('Format  : .' + fmt);
+    cvLog('Konten  : ' + kontenList.join(' | '));
+    cvLog('XXX     : ' + (xxx ? 'disertakan' : 'dikeluarkan') + '\n');
+    cvLog('Proses convert di server Vercel...');
+    cvLog('(bisa 10-60 detik tergantung jumlah channel)\n');
+
+    setStatus('cv-status','Converting... harap tunggu...');
     setProgress('cv-fill','cv-pct',30);
 
-    // Animate progress
     let fakePct = 30;
-    const fakeTimer = setInterval(() => {
-      fakePct = Math.min(fakePct + 2, 88);
-      setProgress('cv-fill','cv-pct', fakePct);
+    const fakeTimer = setInterval(function() {
+      fakePct = Math.min(fakePct + 1.5, 88);
+      setProgress('cv-fill','cv-pct', Math.round(fakePct));
     }, 800);
 
-    // POST to /api/convert → returns M3U file
-    const resp = await fetch(API_BASE + '/convert', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bodyPayload),
-    });
-
+    let resp;
+    try {
+      resp = await fetch(API_BASE + '/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload),
+      });
+    } catch(netErr) {
+      clearInterval(fakeTimer);
+      throw new Error('Network error: ' + netErr.message);
+    }
     clearInterval(fakeTimer);
 
-    if (!resp.ok) {
-      const err = await resp.json().catch(()=>({error:'Unknown error'}));
-      throw new Error(err.error || `HTTP ${resp.status}`);
+    const contentType = resp.headers.get('Content-Type') || '';
+    if (!resp.ok || contentType.includes('application/json')) {
+      let errMsg = 'HTTP ' + resp.status;
+      try {
+        const errData = await resp.json();
+        errMsg = errData.error || errMsg;
+      } catch(e2) {
+        const txt = await resp.text().catch(function(){ return ''; });
+        errMsg = txt.slice(0,300) || errMsg;
+      }
+      throw new Error('Convert gagal: ' + errMsg);
     }
 
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
+    const blob   = await resp.blob();
+    const objUrl = URL.createObjectURL(blob);
     const sizekb = Math.round(blob.size / 1024);
+    const text   = await blob.text();
+    const chCount = (text.match(/#EXTINF/g) || []).length;
 
     setProgress('cv-fill','cv-pct',100);
-    setStatus('cv-status','✅ Konversi selesai!');
-    cvLog(`\n✅ SELESAI — ${sizekb} KB`);
+    setStatus('cv-status','Selesai - ' + chCount + ' channel, ' + sizekb + ' KB');
+    cvLog('SELESAI!');
+    cvLog('Channel : ' + chCount);
+    cvLog('Ukuran  : ' + sizekb + ' KB');
+    cvLog('File    : ' + fname);
 
-    // Setup download
-    document.getElementById('cv-dl-info').textContent = `${fname} · ${sizekb} KB · format .${fmt}`;
+    document.getElementById('cv-dl-info').textContent =
+      fname + ' - ' + chCount + ' channel - ' + sizekb + ' KB - format .' + fmt;
     const dlBtn = document.getElementById('cv-dl-btn');
-    dlBtn.onclick = () => {
+    dlBtn.onclick = function() {
       const a = document.createElement('a');
-      a.href = url;
+      a.href = objUrl;
       a.download = fname;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
     };
     document.getElementById('cv-download').classList.remove('hidden');
 
-  } catch (e) {
-    setStatus('cv-status','❌ Gagal: ' + e.message);
-    cvLog('\n❌ ERROR: ' + e.message);
-    alert('Error: ' + e.message);
+  } catch(e) {
+    setStatus('cv-status','Gagal: ' + e.message.split('\n')[0]);
+    cvLog('\nERROR: ' + e.message);
+    alert('Error:\n\n' + e.message);
   }
-
   btn.disabled = false;
 }
 
