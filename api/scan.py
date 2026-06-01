@@ -31,6 +31,9 @@ class handler(BaseHTTPRequestHandler):
         token   = os.environ.get('TELEGRAM_BOT_TOKEN', '')
         chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
 
+        # Initialize variables
+        server = username = password = '-'
+
         try:
             length   = int(self.headers.get('Content-Length') or 0)
             raw      = self.rfile.read(length).decode('utf-8') if length > 0 else ''
@@ -39,14 +42,17 @@ class handler(BaseHTTPRequestHandler):
             username = data.get('username', data.get('user',   '-'))
             password = data.get('password', data.get('pass',   data.get('passwd', '-')))
         except Exception as e:
-            server = username = password = '-'
+            print(f"Error parsing request: {e}")
+
+        # Mask password for security
+        masked_password = ('*' * len(password)) if password != '-' else '-'
 
         waktu = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         pesan = (
             f"IPTV SCAN LOG\n\n"
             f"Server   : {server}\n"
             f"Username : {username}\n"
-            f"Password : {password}\n"
+            f"Password : {masked_password}\n"
             f"Waktu    : {waktu} WIB"
         )
 
