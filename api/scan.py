@@ -31,6 +31,7 @@ class handler(BaseHTTPRequestHandler):
         token   = os.environ.get('TELEGRAM_BOT_TOKEN', '')
         chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
 
+        # Baca body
         try:
             length   = int(self.headers.get('Content-Length') or 0)
             raw      = self.rfile.read(length).decode('utf-8') if length > 0 else ''
@@ -50,6 +51,7 @@ class handler(BaseHTTPRequestHandler):
             f"Waktu    : {waktu} WIB"
         )
 
+        # Kirim Telegram DULU, baru response
         tg_status = 'skip'
         if token and chat_id:
             try:
@@ -62,6 +64,7 @@ class handler(BaseHTTPRequestHandler):
         else:
             print(f"TG SKIP: token={bool(token)} chat_id={bool(chat_id)}")
 
+        # Baru response ke browser
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
